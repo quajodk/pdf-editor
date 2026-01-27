@@ -15,10 +15,9 @@ pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@$
 
 interface PDFEditorProps {
   file: File;
-  onClose: () => void;
 }
 
-const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
+const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
@@ -677,7 +676,6 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       <Toolbar
-        onClose={onClose}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onDownload={handleDownload}

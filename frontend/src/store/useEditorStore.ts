@@ -1,7 +1,24 @@
 import { create } from 'zustand';
 import { Annotation, Tool, SearchResult } from '../types';
 
+export interface PDFDocument {
+  id: string;
+  name: string;
+  file: File;
+  currentPage: number;
+  totalPages: number;
+  zoom: number;
+  annotations: Annotation[];
+  history: Annotation[][];
+  historyIndex: number;
+}
+
 interface EditorState {
+  // Multiple file support
+  documents: PDFDocument[];
+  currentDocumentId: string | null;
+
+  // Current document state (derived from current document)
   currentTool: Tool;
   currentPage: number;
   totalPages: number;
@@ -20,6 +37,12 @@ interface EditorState {
   searchResults: SearchResult[];
   currentSearchIndex: number;
   isSearchOpen: boolean;
+
+  // Multiple file actions
+  addDocument: (file: File) => string; // Returns document ID
+  removeDocument: (id: string) => void;
+  setCurrentDocument: (id: string) => void;
+  getCurrentDocument: () => PDFDocument | null;
 
   // Actions
   setCurrentTool: (tool: Tool) => void;
@@ -50,7 +73,12 @@ interface EditorState {
   clearSearch: () => void;
 }
 
-export const useEditorStore = create<EditorState>((set) => ({
+export const useEditorStore = create<EditorState>((set, get) => ({
+  // Multiple file state
+  documents: [],
+  currentDocumentId: null,
+
+  // Current document state
   currentTool: 'select',
   currentPage: 1,
   totalPages: 0,
@@ -70,21 +98,175 @@ export const useEditorStore = create<EditorState>((set) => ({
   currentSearchIndex: -1,
   isSearchOpen: false,
 
+  // Multiple file actions
+  addDocument: (file: File) => {
+    const id = `doc-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newDoc: PDFDocument = {
+      id,
+      name: file.name,
+      file,
+      currentPage: 1,
+      totalPages: 0,
+      zoom: 1,
+      annotations: [],
+      history: [[]],
+      historyIndex: 0,
+    };
+
+    set((state) => ({
+      documents: [...state.documents, newDoc],
+      currentDocumentId: id,
+      currentPage: 1,
+      totalPages: 0,
+      zoom: 1,
+      annotations: [],
+      history: [[]],
+      historyIndex: 0,
+      selectedAnnotationId: null,
+      selectedAnnotationIds: [],
+    }));
+
+    return id;
+  },
+
+  removeDocument: (id: string) =>
+    set((state) => {
+      const newDocs = state.documents.filter(doc => doc.id !== id);
+      const newCurrentId = state.currentDocumentId === id
+        ? (newDocs.length > 0 ? newDocs[0].id : null)
+        : state.currentDocumentId;
+
+      const newDoc = newDocs.find(d => d.id === newCurrentId);
+
+      return {
+        documents: newDocs,
+        currentDocumentId: newCurrentId,
+        currentPage: newDoc?.currentPage || 1,
+        totalPages: newDoc?.totalPages || 0,
+        zoom: newDoc?.zoom || 1,
+        annotations: newDoc?.annotations || [],
+        history: newDoc?.history || [[]],
+        historyIndex: newDoc?.historyIndex || 0,
+        selectedAnnotationId: null,
+        selectedAnnotationIds: [],
+      };
+    }),
+
+  setCurrentDocument: (id: string) =>
+    set((state) => {
+      // Save current document state before switching
+      if (state.currentDocumentId) {
+        const updatedDocs = state.documents.map(doc =>
+          doc.id === state.currentDocumentId
+            ? {
+                ...doc,
+                currentPage: state.currentPage,
+                totalPages: state.totalPages,
+                zoom: state.zoom,
+                annotations: state.annotations,
+                history: state.history,
+                historyIndex: state.historyIndex,
+              }
+            : doc
+        );
+
+        const newDoc = updatedDocs.find(d => d.id === id);
+        if (!newDoc) return state;
+
+        return {
+          documents: updatedDocs,
+          currentDocumentId: id,
+          currentPage: newDoc.currentPage,
+          totalPages: newDoc.totalPages,
+          zoom: newDoc.zoom,
+          annotations: newDoc.annotations,
+          history: newDoc.history,
+          historyIndex: newDoc.historyIndex,
+          selectedAnnotationId: null,
+          selectedAnnotationIds: [],
+        };
+      } else {
+        const newDoc = state.documents.find(d => d.id === id);
+        if (!newDoc) return state;
+
+        return {
+          currentDocumentId: id,
+          currentPage: newDoc.currentPage,
+          totalPages: newDoc.totalPages,
+          zoom: newDoc.zoom,
+          annotations: newDoc.annotations,
+          history: newDoc.history,
+          historyIndex: newDoc.historyIndex,
+          selectedAnnotationId: null,
+          selectedAnnotationIds: [],
+        };
+      }
+    }),
+
+  getCurrentDocument: () => {
+    const state = get();
+    return state.documents.find(d => d.id === state.currentDocumentId) || null;
+  },
+
   setCurrentTool: (tool) => set({ currentTool: tool }),
-  setCurrentPage: (page) => set({ currentPage: page }),
-  setTotalPages: (pages) => set({ totalPages: pages }),
-  setZoom: (zoom) => set({ zoom: Math.min(Math.max(zoom, 0.5), 3) }),
+
+  setCurrentPage: (page) =>
+    set((state) => {
+      const updates: any = { currentPage: page };
+      if (state.currentDocumentId) {
+        updates.documents = state.documents.map(doc =>
+          doc.id === state.currentDocumentId ? { ...doc, currentPage: page } : doc
+        );
+      }
+      return updates;
+    }),
+
+  setTotalPages: (pages) =>
+    set((state) => {
+      const updates: any = { totalPages: pages };
+      if (state.currentDocumentId) {
+        updates.documents = state.documents.map(doc =>
+          doc.id === state.currentDocumentId ? { ...doc, totalPages: pages } : doc
+        );
+      }
+      return updates;
+    }),
+
+  setZoom: (zoom) => {
+    const newZoom = Math.min(Math.max(zoom, 0.5), 3);
+    set((state) => {
+      const updates: any = { zoom: newZoom };
+      if (state.currentDocumentId) {
+        updates.documents = state.documents.map(doc =>
+          doc.id === state.currentDocumentId ? { ...doc, zoom: newZoom } : doc
+        );
+      }
+      return updates;
+    });
+  },
 
   addAnnotation: (annotation) =>
     set((state) => {
       const newAnnotations = [...state.annotations, annotation];
       const newHistory = state.history.slice(0, state.historyIndex + 1);
       newHistory.push(newAnnotations);
-      return {
+      const newHistoryIndex = newHistory.length - 1;
+
+      const updates: any = {
         annotations: newAnnotations,
         history: newHistory,
-        historyIndex: newHistory.length - 1,
+        historyIndex: newHistoryIndex,
       };
+
+      if (state.currentDocumentId) {
+        updates.documents = state.documents.map(doc =>
+          doc.id === state.currentDocumentId
+            ? { ...doc, annotations: newAnnotations, history: newHistory, historyIndex: newHistoryIndex }
+            : doc
+        );
+      }
+
+      return updates;
     }),
 
   updateAnnotation: (id, updates) =>
@@ -94,11 +276,23 @@ export const useEditorStore = create<EditorState>((set) => ({
       );
       const newHistory = state.history.slice(0, state.historyIndex + 1);
       newHistory.push(newAnnotations);
-      return {
+      const newHistoryIndex = newHistory.length - 1;
+
+      const stateUpdates: any = {
         annotations: newAnnotations,
         history: newHistory,
-        historyIndex: newHistory.length - 1,
+        historyIndex: newHistoryIndex,
       };
+
+      if (state.currentDocumentId) {
+        stateUpdates.documents = state.documents.map(doc =>
+          doc.id === state.currentDocumentId
+            ? { ...doc, annotations: newAnnotations, history: newHistory, historyIndex: newHistoryIndex }
+            : doc
+        );
+      }
+
+      return stateUpdates;
     }),
 
   deleteAnnotation: (id) =>
@@ -106,13 +300,25 @@ export const useEditorStore = create<EditorState>((set) => ({
       const newAnnotations = state.annotations.filter((ann) => ann.id !== id);
       const newHistory = state.history.slice(0, state.historyIndex + 1);
       newHistory.push(newAnnotations);
-      return {
+      const newHistoryIndex = newHistory.length - 1;
+
+      const updates: any = {
         annotations: newAnnotations,
         history: newHistory,
-        historyIndex: newHistory.length - 1,
+        historyIndex: newHistoryIndex,
         selectedAnnotationId: state.selectedAnnotationId === id ? null : state.selectedAnnotationId,
         selectedAnnotationIds: state.selectedAnnotationIds.filter(selId => selId !== id),
       };
+
+      if (state.currentDocumentId) {
+        updates.documents = state.documents.map(doc =>
+          doc.id === state.currentDocumentId
+            ? { ...doc, annotations: newAnnotations, history: newHistory, historyIndex: newHistoryIndex }
+            : doc
+        );
+      }
+
+      return updates;
     }),
 
   setSelectedAnnotation: (id) => set({
@@ -145,23 +351,47 @@ export const useEditorStore = create<EditorState>((set) => ({
       );
       const newHistory = state.history.slice(0, state.historyIndex + 1);
       newHistory.push(newAnnotations);
-      return {
+      const newHistoryIndex = newHistory.length - 1;
+
+      const updates: any = {
         annotations: newAnnotations,
         history: newHistory,
-        historyIndex: newHistory.length - 1,
+        historyIndex: newHistoryIndex,
         selectedAnnotationId: null,
         selectedAnnotationIds: [],
       };
+
+      if (state.currentDocumentId) {
+        updates.documents = state.documents.map(doc =>
+          doc.id === state.currentDocumentId
+            ? { ...doc, annotations: newAnnotations, history: newHistory, historyIndex: newHistoryIndex }
+            : doc
+        );
+      }
+
+      return updates;
     }),
 
   undo: () =>
     set((state) => {
       if (state.historyIndex > 0) {
         const newIndex = state.historyIndex - 1;
-        return {
-          annotations: state.history[newIndex],
+        const newAnnotations = state.history[newIndex];
+
+        const updates: any = {
+          annotations: newAnnotations,
           historyIndex: newIndex,
         };
+
+        if (state.currentDocumentId) {
+          updates.documents = state.documents.map(doc =>
+            doc.id === state.currentDocumentId
+              ? { ...doc, annotations: newAnnotations, historyIndex: newIndex }
+              : doc
+          );
+        }
+
+        return updates;
       }
       return state;
     }),
@@ -170,10 +400,22 @@ export const useEditorStore = create<EditorState>((set) => ({
     set((state) => {
       if (state.historyIndex < state.history.length - 1) {
         const newIndex = state.historyIndex + 1;
-        return {
-          annotations: state.history[newIndex],
+        const newAnnotations = state.history[newIndex];
+
+        const updates: any = {
+          annotations: newAnnotations,
           historyIndex: newIndex,
         };
+
+        if (state.currentDocumentId) {
+          updates.documents = state.documents.map(doc =>
+            doc.id === state.currentDocumentId
+              ? { ...doc, annotations: newAnnotations, historyIndex: newIndex }
+              : doc
+          );
+        }
+
+        return updates;
       }
       return state;
     }),

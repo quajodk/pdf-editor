@@ -323,7 +323,7 @@
         "Switch between PDFs",
         "Verify correct PDF is displayed"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 28,

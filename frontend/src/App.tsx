@@ -1,24 +1,99 @@
-import React, { useState } from 'react';
+import React from 'react';
 import './App.css';
 import PDFEditor from './components/PDFEditor';
+import { useEditorStore } from './store/useEditorStore';
 
 function App() {
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const { documents, currentDocumentId, addDocument, setCurrentDocument, removeDocument } = useEditorStore();
 
   const handleFileUpload = (file: File) => {
-    setPdfFile(file);
+    if (file && file.type === 'application/pdf') {
+      addDocument(file);
+    } else {
+      alert('Please select a valid PDF file');
+    }
   };
+
+  const currentDocument = documents.find(d => d.id === currentDocumentId);
 
   return (
     <div className="App min-h-screen bg-gray-100">
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">PDF Editor</h1>
+
+          {documents.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="file-upload-header" className="cursor-pointer">
+                <button
+                  onClick={() => document.getElementById('file-upload-header')?.click()}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Add PDF
+                </button>
+                <input
+                  id="file-upload-header"
+                  name="file-upload-header"
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleFileUpload(file);
+                      e.target.value = ''; // Reset input to allow same file upload
+                    }
+                  }}
+                />
+              </label>
+            </div>
+          )}
         </div>
+
+        {/* File tabs */}
+        {documents.length > 0 && (
+          <div className="max-w-7xl mx-auto px-4 border-t border-gray-200">
+            <div className="flex gap-1 overflow-x-auto">
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
+                    doc.id === currentDocumentId
+                      ? 'border-blue-600 text-blue-600 bg-blue-50'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  }`}
+                  onClick={() => setCurrentDocument(doc.id)}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <span className="max-w-[150px] truncate" title={doc.name}>
+                    {doc.name}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeDocument(doc.id);
+                    }}
+                    className="ml-1 hover:text-red-600 focus:outline-none"
+                    aria-label={`Close ${doc.name}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-6">
-        {!pdfFile ? (
+        {documents.length === 0 ? (
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
               <div className="border-4 border-dashed border-gray-300 rounded-lg p-12 bg-white hover:border-blue-500 transition-colors">
@@ -41,10 +116,8 @@ function App() {
                       className="sr-only"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file && file.type === 'application/pdf') {
+                        if (file) {
                           handleFileUpload(file);
-                        } else {
-                          alert('Please select a valid PDF file');
                         }
                       }}
                     />
@@ -59,9 +132,9 @@ function App() {
               </div>
             </div>
           </div>
-        ) : (
-          <PDFEditor file={pdfFile} onClose={() => setPdfFile(null)} />
-        )}
+        ) : currentDocument ? (
+          <PDFEditor key={currentDocument.id} file={currentDocument.file} />
+        ) : null}
       </main>
     </div>
   );

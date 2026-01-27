@@ -3,7 +3,6 @@ import { useEditorStore } from '../store/useEditorStore';
 import { Tool } from '../types';
 
 interface ToolbarProps {
-  onClose: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onDownload: () => void;
@@ -17,7 +16,6 @@ interface ToolbarProps {
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
-  onClose,
   onZoomIn,
   onZoomOut,
   onDownload,
@@ -73,17 +71,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
     <div className="bg-white border-b shadow-sm">
       <div className="flex items-center justify-between px-4 py-2 flex-wrap gap-2">
         <div className="flex items-center gap-2">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-sm bg-gray-200 hover:bg-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-            title="Close editor and return to home"
-            aria-label="Close PDF editor and return to home"
-          >
-            ← Back
-          </button>
-
-          <div className="h-6 w-px bg-gray-300 mx-2"></div>
-
           <button
             onClick={undo}
             disabled={!canUndo}
