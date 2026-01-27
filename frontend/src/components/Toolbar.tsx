@@ -7,6 +7,7 @@ interface ToolbarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onDownload: () => void;
+  onPrint: () => void;
   downloading?: boolean;
   zoom: number;
   currentPage: number;
@@ -19,6 +20,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onZoomIn,
   onZoomOut,
   onDownload,
+  onPrint,
   downloading = false,
   zoom,
   currentPage,
@@ -107,6 +109,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             disabled={downloading}
             className="px-3 py-1.5 text-sm bg-green-600 text-white hover:bg-green-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-400"
             title="Download PDF with all annotations (Ctrl+S or Cmd+S)"
+            aria-label="Download PDF with annotations"
           >
             {downloading ? (
               <>
@@ -116,6 +119,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
             ) : (
               <>⬇ Save</>
             )}
+          </button>
+
+          <button
+            onClick={onPrint}
+            className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+            title="Print PDF with all annotations (Ctrl+P or Cmd+P)"
+            aria-label="Print PDF with annotations"
+          >
+            🖨 Print
           </button>
         </div>
 

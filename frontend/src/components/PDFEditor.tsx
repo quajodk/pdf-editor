@@ -326,6 +326,134 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
     }
   };
 
+  const handlePrint = async () => {
+    try {
+      // If there are annotations, we need to render them into the PDF first
+      if (annotations.length > 0) {
+        // Use the same download logic but open in new window for printing
+        const arrayBuffer = await currentFile.arrayBuffer();
+        const pdfDoc = await PDFDocument.load(arrayBuffer);
+        const pages = pdfDoc.getPages();
+
+        // Render annotations onto each page (same as download)
+        for (const annotation of annotations) {
+          const pageIndex = annotation.pageNumber - 1;
+          if (pageIndex < 0 || pageIndex >= pages.length) continue;
+
+          const page = pages[pageIndex];
+          const { height: pageHeight } = page.getSize();
+
+          if (annotation.type === 'text') {
+            const textAnnotation = annotation as TextAnnotation;
+            const colorRgb = hexToRgb(textAnnotation.color);
+            page.drawText(textAnnotation.text, {
+              x: textAnnotation.x,
+              y: pageHeight - textAnnotation.y - textAnnotation.fontSize,
+              size: textAnnotation.fontSize,
+              color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+            });
+          } else if (annotation.type === 'drawing') {
+            const drawing = annotation as DrawingAnnotation;
+            const colorRgb = hexToRgb(drawing.color);
+            for (let i = 0; i < drawing.points.length - 1; i++) {
+              const start = drawing.points[i];
+              const end = drawing.points[i + 1];
+              page.drawLine({
+                start: { x: start.x, y: pageHeight - start.y },
+                end: { x: end.x, y: pageHeight - end.y },
+                thickness: drawing.width,
+                color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+              });
+            }
+          } else if (annotation.type === 'shape') {
+            const shape = annotation as ShapeAnnotation;
+            const colorRgb = hexToRgb(shape.color);
+
+            if (shape.shapeType === 'rectangle') {
+              page.drawRectangle({
+                x: shape.x,
+                y: pageHeight - shape.y - shape.height,
+                width: shape.width,
+                height: shape.height,
+                borderColor: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+                borderWidth: shape.strokeWidth,
+              });
+            } else if (shape.shapeType === 'circle') {
+              const radiusX = shape.width / 2;
+              const radiusY = shape.height / 2;
+              page.drawEllipse({
+                x: shape.x + radiusX,
+                y: pageHeight - shape.y - radiusY,
+                xScale: radiusX,
+                yScale: radiusY,
+                borderColor: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+                borderWidth: shape.strokeWidth,
+              });
+            } else if (shape.shapeType === 'line' || shape.shapeType === 'arrow') {
+              page.drawLine({
+                start: { x: shape.x, y: pageHeight - shape.y },
+                end: { x: shape.x + shape.width, y: pageHeight - shape.y - shape.height },
+                thickness: shape.strokeWidth,
+                color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+              });
+            }
+          } else if (annotation.type === 'highlight') {
+            const highlight = annotation as HighlightAnnotation;
+            const colorRgb = hexToRgb(highlight.color);
+            page.drawRectangle({
+              x: highlight.x,
+              y: pageHeight - highlight.y - highlight.height,
+              width: highlight.width,
+              height: highlight.height,
+              color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+              opacity: 0.3,
+            });
+          } else if (annotation.type === 'image') {
+            const imageAnnotation = annotation as ImageAnnotation;
+            const imageBytes = await fetch(imageAnnotation.imageData).then(res => res.arrayBuffer());
+            let embeddedImage;
+            if (imageAnnotation.imageData.startsWith('data:image/png')) {
+              embeddedImage = await pdfDoc.embedPng(imageBytes);
+            } else {
+              embeddedImage = await pdfDoc.embedJpg(imageBytes);
+            }
+            page.drawImage(embeddedImage, {
+              x: imageAnnotation.x,
+              y: pageHeight - imageAnnotation.y - imageAnnotation.height,
+              width: imageAnnotation.width,
+              height: imageAnnotation.height,
+            });
+          }
+        }
+
+        // Save and open for printing
+        const pdfBytes = await pdfDoc.save();
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+
+        // Open in new window and trigger print
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) {
+          printWindow.onload = () => {
+            printWindow.print();
+          };
+        }
+      } else {
+        // No annotations, just print the original PDF
+        const url = URL.createObjectURL(currentFile);
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) {
+          printWindow.onload = () => {
+            printWindow.print();
+          };
+        }
+      }
+    } catch (error) {
+      console.error('Error printing PDF:', error);
+      alert('Failed to print PDF. Please try again.');
+    }
+  };
+
   const handlePageReorder = async (fromPage: number, toPage: number) => {
     setLoading(true);
     try {
@@ -425,6 +553,12 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         handleDownload();
       }
 
+      // Ctrl/Cmd + P: Print
+      else if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+        e.preventDefault();
+        handlePrint();
+      }
+
       // Arrow keys: Page navigation
       else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -459,6 +593,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onDownload={handleDownload}
+        onPrint={handlePrint}
         downloading={downloading}
         zoom={zoom}
         currentPage={currentPage}

@@ -398,7 +398,7 @@
         "Verify print dialog opens",
         "Verify PDF includes edits"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 34,
