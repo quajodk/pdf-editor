@@ -6,6 +6,7 @@ interface PageThumbnailsProps {
   numPages: number;
   currentPage: number;
   onPageClick: (pageNumber: number) => void;
+  onPageDelete: (pageNumber: number) => void;
   isOpen: boolean;
   onToggle: () => void;
 }
@@ -15,6 +16,7 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
   numPages,
   currentPage,
   onPageClick,
+  onPageDelete,
   isOpen,
   onToggle,
 }) => {
@@ -42,31 +44,50 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
                 (pageNumber) => (
                   <div
                     key={pageNumber}
-                    onClick={() => onPageClick(pageNumber)}
-                    className={`cursor-pointer border-2 rounded overflow-hidden transition-all hover:border-blue-500 ${
+                    className={`border-2 rounded overflow-hidden transition-all hover:border-blue-500 relative ${
                       currentPage === pageNumber
                         ? 'border-blue-600 ring-2 ring-blue-400 shadow-md'
                         : 'border-gray-300'
                     }`}
-                    title={`Go to page ${pageNumber}`}
                   >
-                    <div className="relative">
-                      <Page
-                        pageNumber={pageNumber}
-                        width={160}
-                        renderTextLayer={false}
-                        renderAnnotationLayer={false}
-                      />
-                      <div
-                        className={`absolute bottom-0 left-0 right-0 text-center py-1 text-xs font-medium ${
-                          currentPage === pageNumber
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-200 text-gray-700'
-                        }`}
-                      >
-                        Page {pageNumber}
+                    <div
+                      onClick={() => onPageClick(pageNumber)}
+                      className="cursor-pointer"
+                      title={`Go to page ${pageNumber}`}
+                    >
+                      <div className="relative">
+                        <Page
+                          pageNumber={pageNumber}
+                          width={160}
+                          renderTextLayer={false}
+                          renderAnnotationLayer={false}
+                        />
+                        <div
+                          className={`absolute bottom-0 left-0 right-0 text-center py-1 text-xs font-medium ${
+                            currentPage === pageNumber
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-200 text-gray-700'
+                          }`}
+                        >
+                          Page {pageNumber}
+                        </div>
                       </div>
                     </div>
+                    {/* Delete Button */}
+                    {numPages > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Delete page ${pageNumber}? This cannot be undone.`)) {
+                            onPageDelete(pageNumber);
+                          }
+                        }}
+                        className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded p-1 text-xs font-bold shadow-md transition-colors"
+                        title={`Delete page ${pageNumber}`}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 )
               )}

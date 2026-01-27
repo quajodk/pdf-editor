@@ -349,7 +349,7 @@
         "Verify page is removed",
         "Verify page numbers update"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 30,

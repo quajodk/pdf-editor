@@ -22,6 +22,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(false);
+  const [currentFile, setCurrentFile] = useState<File>(file);
   const { currentPage, setCurrentPage, setTotalPages, zoom, setZoom, annotations, undo, redo } = useEditorStore();
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -70,11 +71,11 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
 
   const handleDownload = async () => {
     if (annotations.length === 0) {
-      // If no annotations, just download the original
-      const url = URL.createObjectURL(file);
+      // If no annotations, just download the current file
+      const url = URL.createObjectURL(currentFile);
       const link = document.createElement('a');
       link.href = url;
-      link.download = file.name.replace('.pdf', '_edited.pdf');
+      link.download = currentFile.name.replace('.pdf', '_edited.pdf');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -84,8 +85,8 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
 
     setDownloading(true);
     try {
-      // Load the original PDF
-      const arrayBuffer = await file.arrayBuffer();
+      // Load the current PDF
+      const arrayBuffer = await currentFile.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer);
       const pages = pdfDoc.getPages();
 
@@ -214,7 +215,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = file.name.replace('.pdf', '_edited.pdf');
+      link.download = currentFile.name.replace('.pdf', '_edited.pdf');
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -224,6 +225,66 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
       alert('Failed to download PDF with annotations. Please try again.');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handlePageDelete = async (pageNumber: number) => {
+    if (numPages <= 1) {
+      alert('Cannot delete the only page in the document.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Load the PDF
+      const arrayBuffer = await currentFile.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+
+      // Remove the page (pageNumber is 1-indexed, but pdf-lib uses 0-indexed)
+      pdfDoc.removePage(pageNumber - 1);
+
+      // Save the modified PDF
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const newFile = new File([blob], currentFile.name, { type: 'application/pdf' });
+
+      // Update state
+      setCurrentFile(newFile);
+
+      // Filter out annotations from the deleted page
+      const { annotations: allAnnotations } = useEditorStore.getState();
+      const filteredAnnotations = allAnnotations.filter(ann => ann.pageNumber !== pageNumber);
+
+      // Adjust page numbers for annotations after the deleted page
+      const adjustedAnnotations = filteredAnnotations.map(ann => {
+        if (ann.pageNumber > pageNumber) {
+          return { ...ann, pageNumber: ann.pageNumber - 1 };
+        }
+        return ann;
+      });
+
+      // Update annotations in store (this will add to history)
+      useEditorStore.setState({
+        annotations: adjustedAnnotations,
+        history: [...useEditorStore.getState().history, adjustedAnnotations],
+        historyIndex: useEditorStore.getState().historyIndex + 1,
+      });
+
+      // Adjust current page if necessary
+      if (currentPage > numPages - 1) {
+        setCurrentPage(numPages - 1);
+      } else if (currentPage >= pageNumber && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      }
+
+      // Force reload by updating numPages
+      setNumPages(numPages - 1);
+      setTotalPages(numPages - 1);
+    } catch (error) {
+      console.error('Error deleting page:', error);
+      alert('Failed to delete page. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -296,10 +357,11 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
       />
 
       <PageThumbnails
-        file={file}
+        file={currentFile}
         numPages={numPages}
         currentPage={currentPage}
         onPageClick={setCurrentPage}
+        onPageDelete={handlePageDelete}
         isOpen={thumbnailsOpen}
         onToggle={() => setThumbnailsOpen(!thumbnailsOpen)}
       />
@@ -317,7 +379,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         <div className="flex justify-center">
           <div className="relative bg-white shadow-lg">
             <Document
-              file={file}
+              file={currentFile}
               onLoadSuccess={onDocumentLoadSuccess}
               onLoadError={onDocumentLoadError}
               loading={
