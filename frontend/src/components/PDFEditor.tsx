@@ -326,6 +326,78 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
     }
   };
 
+  const handlePageReorder = async (fromPage: number, toPage: number) => {
+    setLoading(true);
+    try {
+      // Load the PDF
+      const arrayBuffer = await currentFile.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+
+      // Create a new PDF document
+      const newPdfDoc = await PDFDocument.create();
+
+      // Calculate the new order of pages
+      const pageOrder: number[] = [];
+      for (let i = 1; i <= numPages; i++) {
+        pageOrder.push(i);
+      }
+
+      // Remove the dragged page from its original position
+      pageOrder.splice(fromPage - 1, 1);
+      // Insert it at the target position
+      pageOrder.splice(toPage - 1, 0, fromPage);
+
+      // Copy pages in the new order
+      for (const pageNum of pageOrder) {
+        const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [pageNum - 1]);
+        newPdfDoc.addPage(copiedPage);
+      }
+
+      // Save the reordered PDF
+      const pdfBytes = await newPdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const newFile = new File([blob], currentFile.name, { type: 'application/pdf' });
+
+      // Update state
+      setCurrentFile(newFile);
+
+      // Update annotations with new page numbers
+      const { annotations: allAnnotations } = useEditorStore.getState();
+      const reorderedAnnotations = allAnnotations.map(ann => {
+        // Find the new page number for this annotation
+        const oldPageNum = ann.pageNumber;
+        const newPageNum = pageOrder.indexOf(oldPageNum) + 1;
+        return { ...ann, pageNumber: newPageNum };
+      });
+
+      // Update annotations in store
+      useEditorStore.setState({
+        annotations: reorderedAnnotations,
+        history: [...useEditorStore.getState().history, reorderedAnnotations],
+        historyIndex: useEditorStore.getState().historyIndex + 1,
+      });
+
+      // Update current page if the current page was moved
+      if (currentPage === fromPage) {
+        setCurrentPage(toPage);
+      } else {
+        // Adjust current page if it was affected by the move
+        const newCurrentPage = pageOrder.indexOf(currentPage) + 1;
+        setCurrentPage(newCurrentPage);
+      }
+
+      // Force re-render
+      setLoading(false);
+      setTimeout(() => {
+        setNumPages(numPages); // This triggers re-render
+      }, 100);
+    } catch (error) {
+      console.error('Error reordering pages:', error);
+      alert('Failed to reorder pages. Please try again.');
+      setLoading(false);
+    }
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -401,6 +473,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         onPageClick={setCurrentPage}
         onPageDelete={handlePageDelete}
         onPageRotate={handlePageRotate}
+        onPageReorder={handlePageReorder}
         isOpen={thumbnailsOpen}
         onToggle={() => setThumbnailsOpen(!thumbnailsOpen)}
       />

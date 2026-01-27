@@ -360,7 +360,7 @@
         "Drag page thumbnail to new position",
         "Verify pages reorder correctly"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 31,

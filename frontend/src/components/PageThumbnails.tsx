@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Document, Page } from 'react-pdf';
 
 interface PageThumbnailsProps {
@@ -8,6 +8,7 @@ interface PageThumbnailsProps {
   onPageClick: (pageNumber: number) => void;
   onPageDelete: (pageNumber: number) => void;
   onPageRotate: (pageNumber: number) => void;
+  onPageReorder: (fromPage: number, toPage: number) => void;
   isOpen: boolean;
   onToggle: () => void;
 }
@@ -19,9 +20,43 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
   onPageClick,
   onPageDelete,
   onPageRotate,
+  onPageReorder,
   isOpen,
   onToggle,
 }) => {
+  const [draggedPage, setDraggedPage] = useState<number | null>(null);
+  const [dragOverPage, setDragOverPage] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, pageNumber: number) => {
+    setDraggedPage(pageNumber);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, pageNumber: number) => {
+    e.preventDefault();
+    if (draggedPage !== pageNumber) {
+      setDragOverPage(pageNumber);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverPage(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetPage: number) => {
+    e.preventDefault();
+    if (draggedPage !== null && draggedPage !== targetPage) {
+      onPageReorder(draggedPage, targetPage);
+    }
+    setDraggedPage(null);
+    setDragOverPage(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedPage(null);
+    setDragOverPage(null);
+  };
+
   return (
     <>
       {/* Toggle Button */}
@@ -46,10 +81,18 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
                 (pageNumber) => (
                   <div
                     key={pageNumber}
-                    className={`border-2 rounded overflow-hidden transition-all hover:border-blue-500 relative ${
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, pageNumber)}
+                    onDragOver={(e) => handleDragOver(e, pageNumber)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, pageNumber)}
+                    onDragEnd={handleDragEnd}
+                    className={`border-2 rounded overflow-hidden transition-all hover:border-blue-500 relative cursor-move ${
                       currentPage === pageNumber
                         ? 'border-blue-600 ring-2 ring-blue-400 shadow-md'
                         : 'border-gray-300'
+                    } ${draggedPage === pageNumber ? 'opacity-50' : ''} ${
+                      dragOverPage === pageNumber ? 'ring-4 ring-green-500 transform scale-105' : ''
                     }`}
                   >
                     <div
