@@ -1,0 +1,607 @@
+{
+  "tests": [
+    {
+      "id": 1,
+      "feature": "PDF Upload",
+      "description": "User can upload a PDF file",
+      "steps": [
+        "Navigate to home page",
+        "Click upload button or drag-drop area",
+        "Select a PDF file",
+        "Verify file appears in the editor"
+      ],
+      "passes": false
+    },
+    {
+      "id": 2,
+      "feature": "PDF Display",
+      "description": "Uploaded PDF is displayed with proper rendering",
+      "steps": [
+        "Upload a PDF file",
+        "Verify PDF pages are rendered clearly",
+        "Check that all pages are visible"
+      ],
+      "passes": false
+    },
+    {
+      "id": 3,
+      "feature": "Page Navigation",
+      "description": "User can navigate between PDF pages",
+      "steps": [
+        "Upload a multi-page PDF",
+        "Click next/previous buttons",
+        "Verify page number updates",
+        "Verify correct page is displayed"
+      ],
+      "passes": false
+    },
+    {
+      "id": 4,
+      "feature": "Zoom Controls",
+      "description": "User can zoom in/out on PDF pages",
+      "steps": [
+        "Upload a PDF",
+        "Click zoom in button",
+        "Verify content enlarges",
+        "Click zoom out button",
+        "Verify content shrinks"
+      ],
+      "passes": false
+    },
+    {
+      "id": 5,
+      "feature": "Text Addition",
+      "description": "User can add text annotations to PDF",
+      "steps": [
+        "Upload a PDF",
+        "Click 'Add Text' tool",
+        "Click on PDF to place text",
+        "Type text content",
+        "Verify text appears on PDF"
+      ],
+      "passes": false
+    },
+    {
+      "id": 6,
+      "feature": "Text Editing",
+      "description": "User can edit added text annotations",
+      "steps": [
+        "Add text to PDF",
+        "Click on existing text",
+        "Modify text content",
+        "Verify changes are reflected"
+      ],
+      "passes": false
+    },
+    {
+      "id": 7,
+      "feature": "Text Deletion",
+      "description": "User can delete text annotations",
+      "steps": [
+        "Add text to PDF",
+        "Select text annotation",
+        "Click delete button",
+        "Verify text is removed"
+      ],
+      "passes": false
+    },
+    {
+      "id": 8,
+      "feature": "Text Styling - Font Size",
+      "description": "User can change font size of text",
+      "steps": [
+        "Add text to PDF",
+        "Select the text",
+        "Change font size from toolbar",
+        "Verify text size changes"
+      ],
+      "passes": false
+    },
+    {
+      "id": 9,
+      "feature": "Text Styling - Font Color",
+      "description": "User can change font color of text",
+      "steps": [
+        "Add text to PDF",
+        "Select the text",
+        "Choose color from color picker",
+        "Verify text color changes"
+      ],
+      "passes": false
+    },
+    {
+      "id": 10,
+      "feature": "Text Styling - Font Family",
+      "description": "User can change font family of text",
+      "steps": [
+        "Add text to PDF",
+        "Select the text",
+        "Choose font from dropdown",
+        "Verify font family changes"
+      ],
+      "passes": false
+    },
+    {
+      "id": 11,
+      "feature": "Draw Tool - Pen",
+      "description": "User can draw freehand on PDF",
+      "steps": [
+        "Upload a PDF",
+        "Select pen/draw tool",
+        "Draw on the PDF",
+        "Verify drawing appears"
+      ],
+      "passes": false
+    },
+    {
+      "id": 12,
+      "feature": "Draw Tool - Color",
+      "description": "User can change pen color",
+      "steps": [
+        "Select pen tool",
+        "Choose a color",
+        "Draw on PDF",
+        "Verify drawing has correct color"
+      ],
+      "passes": false
+    },
+    {
+      "id": 13,
+      "feature": "Draw Tool - Width",
+      "description": "User can change pen width",
+      "steps": [
+        "Select pen tool",
+        "Adjust pen width slider",
+        "Draw on PDF",
+        "Verify drawing has correct width"
+      ],
+      "passes": false
+    },
+    {
+      "id": 14,
+      "feature": "Eraser Tool",
+      "description": "User can erase drawn annotations",
+      "steps": [
+        "Draw something on PDF",
+        "Select eraser tool",
+        "Erase part of drawing",
+        "Verify erased area is removed"
+      ],
+      "passes": false
+    },
+    {
+      "id": 15,
+      "feature": "Shape Tool - Rectangle",
+      "description": "User can add rectangles to PDF",
+      "steps": [
+        "Upload a PDF",
+        "Select rectangle tool",
+        "Draw rectangle on PDF",
+        "Verify rectangle appears"
+      ],
+      "passes": false
+    },
+    {
+      "id": 16,
+      "feature": "Shape Tool - Circle",
+      "description": "User can add circles to PDF",
+      "steps": [
+        "Upload a PDF",
+        "Select circle tool",
+        "Draw circle on PDF",
+        "Verify circle appears"
+      ],
+      "passes": false
+    },
+    {
+      "id": 17,
+      "feature": "Shape Tool - Line",
+      "description": "User can add lines to PDF",
+      "steps": [
+        "Upload a PDF",
+        "Select line tool",
+        "Draw line on PDF",
+        "Verify line appears"
+      ],
+      "passes": false
+    },
+    {
+      "id": 18,
+      "feature": "Shape Tool - Arrow",
+      "description": "User can add arrows to PDF",
+      "steps": [
+        "Upload a PDF",
+        "Select arrow tool",
+        "Draw arrow on PDF",
+        "Verify arrow with head appears"
+      ],
+      "passes": false
+    },
+    {
+      "id": 19,
+      "feature": "Highlight Tool",
+      "description": "User can highlight text areas",
+      "steps": [
+        "Upload a PDF with text",
+        "Select highlight tool",
+        "Drag over text area",
+        "Verify semi-transparent highlight appears"
+      ],
+      "passes": false
+    },
+    {
+      "id": 20,
+      "feature": "Image Upload",
+      "description": "User can add images to PDF",
+      "steps": [
+        "Upload a PDF",
+        "Click 'Add Image' button",
+        "Select an image file",
+        "Place image on PDF",
+        "Verify image appears"
+      ],
+      "passes": false
+    },
+    {
+      "id": 21,
+      "feature": "Image Resize",
+      "description": "User can resize added images",
+      "steps": [
+        "Add image to PDF",
+        "Click on image to select",
+        "Drag corner handles",
+        "Verify image resizes proportionally"
+      ],
+      "passes": false
+    },
+    {
+      "id": 22,
+      "feature": "Image Move",
+      "description": "User can move images around",
+      "steps": [
+        "Add image to PDF",
+        "Click and drag image",
+        "Verify image moves to new position"
+      ],
+      "passes": false
+    },
+    {
+      "id": 23,
+      "feature": "Image Delete",
+      "description": "User can delete added images",
+      "steps": [
+        "Add image to PDF",
+        "Select image",
+        "Press delete key or delete button",
+        "Verify image is removed"
+      ],
+      "passes": false
+    },
+    {
+      "id": 24,
+      "feature": "Undo",
+      "description": "User can undo last action",
+      "steps": [
+        "Make several changes to PDF",
+        "Click undo button",
+        "Verify last change is reverted",
+        "Click undo multiple times",
+        "Verify changes revert in order"
+      ],
+      "passes": false
+    },
+    {
+      "id": 25,
+      "feature": "Redo",
+      "description": "User can redo undone actions",
+      "steps": [
+        "Make changes and undo them",
+        "Click redo button",
+        "Verify undone change is restored"
+      ],
+      "passes": false
+    },
+    {
+      "id": 26,
+      "feature": "Save PDF",
+      "description": "User can save edited PDF",
+      "steps": [
+        "Upload and edit a PDF",
+        "Click 'Save' or 'Download' button",
+        "Verify PDF downloads with edits preserved"
+      ],
+      "passes": false
+    },
+    {
+      "id": 27,
+      "feature": "Multiple Files",
+      "description": "User can work with multiple PDFs",
+      "steps": [
+        "Upload first PDF",
+        "Upload second PDF",
+        "Verify both PDFs are accessible",
+        "Switch between PDFs",
+        "Verify correct PDF is displayed"
+      ],
+      "passes": false
+    },
+    {
+      "id": 28,
+      "feature": "Page Thumbnails",
+      "description": "User can see page thumbnails",
+      "steps": [
+        "Upload multi-page PDF",
+        "Open thumbnail sidebar",
+        "Verify all pages shown as thumbnails",
+        "Click thumbnail",
+        "Verify page navigation works"
+      ],
+      "passes": false
+    },
+    {
+      "id": 29,
+      "feature": "Page Deletion",
+      "description": "User can delete pages from PDF",
+      "steps": [
+        "Upload multi-page PDF",
+        "Select a page",
+        "Click delete page button",
+        "Verify page is removed",
+        "Verify page numbers update"
+      ],
+      "passes": false
+    },
+    {
+      "id": 30,
+      "feature": "Page Reordering",
+      "description": "User can reorder pages",
+      "steps": [
+        "Upload multi-page PDF",
+        "Drag page thumbnail to new position",
+        "Verify pages reorder correctly"
+      ],
+      "passes": false
+    },
+    {
+      "id": 31,
+      "feature": "Page Rotation",
+      "description": "User can rotate pages",
+      "steps": [
+        "Upload a PDF",
+        "Click rotate button",
+        "Verify page rotates 90 degrees",
+        "Click rotate multiple times",
+        "Verify full rotation cycle"
+      ],
+      "passes": false
+    },
+    {
+      "id": 32,
+      "feature": "Search Text",
+      "description": "User can search for text in PDF",
+      "steps": [
+        "Upload PDF with text",
+        "Open search box",
+        "Enter search term",
+        "Verify matching text is highlighted",
+        "Navigate through results"
+      ],
+      "passes": false
+    },
+    {
+      "id": 33,
+      "feature": "Print PDF",
+      "description": "User can print PDF",
+      "steps": [
+        "Upload and edit PDF",
+        "Click print button",
+        "Verify print dialog opens",
+        "Verify PDF includes edits"
+      ],
+      "passes": false
+    },
+    {
+      "id": 34,
+      "feature": "Keyboard Shortcuts",
+      "description": "Common keyboard shortcuts work",
+      "steps": [
+        "Upload PDF",
+        "Press Ctrl+Z (undo)",
+        "Verify undo works",
+        "Press Ctrl+Y (redo)",
+        "Verify redo works",
+        "Test other shortcuts"
+      ],
+      "passes": false
+    },
+    {
+      "id": 35,
+      "feature": "Responsive Design",
+      "description": "Application works on different screen sizes",
+      "steps": [
+        "Open app on desktop",
+        "Verify layout is appropriate",
+        "Resize to tablet size",
+        "Verify responsive adjustments",
+        "Resize to mobile size",
+        "Verify mobile layout works"
+      ],
+      "passes": false
+    },
+    {
+      "id": 36,
+      "feature": "Error Handling - Invalid File",
+      "description": "App handles non-PDF files gracefully",
+      "steps": [
+        "Try to upload a .txt or .jpg file",
+        "Verify error message appears",
+        "Verify app remains functional"
+      ],
+      "passes": false
+    },
+    {
+      "id": 37,
+      "feature": "Error Handling - Large File",
+      "description": "App handles very large PDFs",
+      "steps": [
+        "Upload a large PDF (50+ pages)",
+        "Verify loading indicator appears",
+        "Verify PDF loads successfully",
+        "Verify performance is acceptable"
+      ],
+      "passes": false
+    },
+    {
+      "id": 38,
+      "feature": "Error Handling - Corrupted PDF",
+      "description": "App handles corrupted PDF files",
+      "steps": [
+        "Try to upload corrupted PDF",
+        "Verify error message appears",
+        "Verify app doesn't crash"
+      ],
+      "passes": false
+    },
+    {
+      "id": 39,
+      "feature": "Loading States",
+      "description": "App shows loading indicators",
+      "steps": [
+        "Upload a PDF",
+        "Verify loading spinner appears",
+        "Verify UI indicates progress",
+        "Verify spinner disappears when loaded"
+      ],
+      "passes": false
+    },
+    {
+      "id": 40,
+      "feature": "Accessibility - Keyboard Navigation",
+      "description": "All features accessible via keyboard",
+      "steps": [
+        "Navigate app using only keyboard",
+        "Tab through all controls",
+        "Verify focus indicators visible",
+        "Activate tools with Enter/Space"
+      ],
+      "passes": false
+    },
+    {
+      "id": 41,
+      "feature": "Accessibility - Screen Reader",
+      "description": "Screen reader can access all features",
+      "steps": [
+        "Enable screen reader",
+        "Navigate through app",
+        "Verify all controls are announced",
+        "Verify ARIA labels present"
+      ],
+      "passes": false
+    },
+    {
+      "id": 42,
+      "feature": "Accessibility - Color Contrast",
+      "description": "UI meets WCAG contrast requirements",
+      "steps": [
+        "Inspect UI elements",
+        "Verify text contrast ratio ≥ 4.5:1",
+        "Verify controls contrast ≥ 3:1"
+      ],
+      "passes": false
+    },
+    {
+      "id": 43,
+      "feature": "Performance - Fast Rendering",
+      "description": "PDF renders quickly",
+      "steps": [
+        "Upload medium PDF (10 pages)",
+        "Measure time to first render",
+        "Verify renders in < 3 seconds"
+      ],
+      "passes": false
+    },
+    {
+      "id": 44,
+      "feature": "Performance - Smooth Scrolling",
+      "description": "Scrolling through PDF is smooth",
+      "steps": [
+        "Upload long PDF",
+        "Scroll through pages",
+        "Verify no lag or jank",
+        "Check frame rate stays high"
+      ],
+      "passes": false
+    },
+    {
+      "id": 45,
+      "feature": "Performance - Memory Management",
+      "description": "App doesn't leak memory",
+      "steps": [
+        "Upload and close multiple PDFs",
+        "Monitor memory usage",
+        "Verify memory is released"
+      ],
+      "passes": false
+    },
+    {
+      "id": 46,
+      "feature": "Dark Mode",
+      "description": "App supports dark mode",
+      "steps": [
+        "Toggle dark mode",
+        "Verify UI switches to dark theme",
+        "Verify PDF remains readable",
+        "Toggle back to light mode"
+      ],
+      "passes": false
+    },
+    {
+      "id": 47,
+      "feature": "Toolbar Organization",
+      "description": "Tools are organized logically",
+      "steps": [
+        "Review toolbar layout",
+        "Verify related tools grouped",
+        "Verify labels are clear",
+        "Verify icons are intuitive"
+      ],
+      "passes": false
+    },
+    {
+      "id": 48,
+      "feature": "Tooltips",
+      "description": "Tooltips explain tool functions",
+      "steps": [
+        "Hover over each tool button",
+        "Verify tooltip appears",
+        "Verify tooltip text is helpful"
+      ],
+      "passes": false
+    },
+    {
+      "id": 49,
+      "feature": "Selection Tool",
+      "description": "User can select and move annotations",
+      "steps": [
+        "Add multiple annotations",
+        "Select selection tool",
+        "Click annotation to select",
+        "Drag to move",
+        "Verify movement works"
+      ],
+      "passes": false
+    },
+    {
+      "id": 50,
+      "feature": "Multi-Select",
+      "description": "User can select multiple annotations",
+      "steps": [
+        "Add multiple annotations",
+        "Shift+click or drag select box",
+        "Verify multiple items selected",
+        "Delete or move selected group"
+      ],
+      "passes": false
+    }
+  ]
+}

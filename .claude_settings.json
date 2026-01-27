@@ -1,0 +1,10 @@
+{
+  "auto_approve_edits": true,
+  "max_turns": 1000,
+  "permissions": {
+    "allow_edit": [
+      "./**"
+    ],
+    "deny_edit": []
+  }
+}
