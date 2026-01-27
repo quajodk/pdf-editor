@@ -518,11 +518,12 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
           onClick={handlePrevPage}
           disabled={currentPage <= 1}
           className="px-3 py-1 bg-blue-600 text-white rounded disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700"
+          title="Go to previous page (Left arrow key)"
         >
           Previous
         </button>
 
-        <span className="text-sm text-gray-700">
+        <span className="text-sm text-gray-700" title="Current page number and total pages">
           Page {currentPage} of {numPages}
         </span>
 
@@ -530,6 +531,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
           onClick={handleNextPage}
           disabled={currentPage >= numPages}
           className="px-3 py-1 bg-blue-600 text-white rounded disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700"
+          title="Go to next page (Right arrow key)"
         >
           Next
         </button>

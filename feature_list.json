@@ -565,7 +565,7 @@
         "Verify labels are clear",
         "Verify icons are intuitive"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 48,
@@ -576,7 +576,7 @@
         "Verify tooltip appears",
         "Verify tooltip text is helpful"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 49,

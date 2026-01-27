@@ -46,17 +46,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
     deleteSelectedAnnotations,
   } = useEditorStore();
 
-  const tools: { id: Tool; label: string; icon: string }[] = [
-    { id: 'select', label: 'Select', icon: '↖' },
-    { id: 'text', label: 'Text', icon: 'T' },
-    { id: 'pen', label: 'Pen', icon: '✏' },
-    { id: 'eraser', label: 'Eraser', icon: '⌫' },
-    { id: 'rectangle', label: 'Rectangle', icon: '▭' },
-    { id: 'circle', label: 'Circle', icon: '○' },
-    { id: 'line', label: 'Line', icon: '/' },
-    { id: 'arrow', label: 'Arrow', icon: '→' },
-    { id: 'highlight', label: 'Highlight', icon: '▓' },
-    { id: 'image', label: 'Image', icon: '🖼' },
+  const tools: { id: Tool; label: string; icon: string; tooltip: string }[] = [
+    { id: 'select', label: 'Select', icon: '↖', tooltip: 'Select and move annotations - Click to select, Shift+Click for multi-select' },
+    { id: 'text', label: 'Text', icon: 'T', tooltip: 'Add text annotations - Click to place, double-click to edit' },
+    { id: 'pen', label: 'Pen', icon: '✏', tooltip: 'Draw freehand - Click and drag to draw' },
+    { id: 'eraser', label: 'Eraser', icon: '⌫', tooltip: 'Erase pen strokes - Drag over drawings to erase' },
+    { id: 'rectangle', label: 'Rectangle', icon: '▭', tooltip: 'Draw rectangles - Click and drag to create' },
+    { id: 'circle', label: 'Circle', icon: '○', tooltip: 'Draw circles/ellipses - Click and drag to create' },
+    { id: 'line', label: 'Line', icon: '/', tooltip: 'Draw straight lines - Click and drag to create' },
+    { id: 'arrow', label: 'Arrow', icon: '→', tooltip: 'Draw arrows - Click and drag to create' },
+    { id: 'highlight', label: 'Highlight', icon: '▓', tooltip: 'Highlight areas - Click and drag to highlight' },
+    { id: 'image', label: 'Image', icon: '🖼', tooltip: 'Add images - Click to place, then select image file' },
   ];
 
   const canUndo = historyIndex > 0;
@@ -72,6 +72,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={onClose}
             className="px-3 py-1.5 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+            title="Close editor and return to home"
           >
             ← Back
           </button>
@@ -82,7 +83,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             onClick={undo}
             disabled={!canUndo}
             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Undo (Ctrl+Z)"
+            title="Undo last action (Ctrl+Z or Cmd+Z)"
           >
             ↶ Undo
           </button>
@@ -91,7 +92,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             onClick={redo}
             disabled={!canRedo}
             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Redo (Ctrl+Y)"
+            title="Redo undone action (Ctrl+Y or Cmd+Y)"
           >
             ↷ Redo
           </button>
@@ -102,7 +103,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             onClick={onDownload}
             disabled={downloading}
             className="px-3 py-1.5 text-sm bg-green-600 text-white hover:bg-green-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            title="Download PDF (Ctrl+S)"
+            title="Download PDF with all annotations (Ctrl+S or Cmd+S)"
           >
             {downloading ? (
               <>
@@ -125,7 +126,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
               }`}
-              title={tool.label}
+              title={tool.tooltip}
             >
               <span className="text-lg">{tool.icon}</span>
             </button>
@@ -145,7 +146,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                   value={isTextTool ? fontColor : penColor}
                   onChange={(e) => isTextTool ? setFontColor(e.target.value) : setPenColor(e.target.value)}
                   className="w-10 h-8 rounded cursor-pointer"
-                  title={isTextTool ? 'Font Color' : 'Pen Color'}
+                  title={isTextTool ? 'Choose text color for new annotations' : 'Choose color for pen, shapes, and highlights'}
                 />
               </div>
 
@@ -160,7 +161,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     value={penWidth}
                     onChange={(e) => setPenWidth(Number(e.target.value))}
                     className="w-20"
-                    title="Pen Width"
+                    title="Adjust line width for pen, shapes, and highlights (1-10px)"
                   />
                   <span className="text-xs text-gray-600 w-6">{penWidth}</span>
                 </div>
@@ -175,7 +176,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                       value={fontFamily}
                       onChange={(e) => setFontFamily(e.target.value)}
                       className="px-2 py-1 text-sm border rounded"
-                      title="Font Family"
+                      title="Choose font family for text annotations"
                     >
                       <option value="Arial">Arial</option>
                       <option value="Times New Roman">Times New Roman</option>
@@ -195,7 +196,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                       value={fontSize}
                       onChange={(e) => setFontSize(Number(e.target.value))}
                       className="w-20"
-                      title="Font Size"
+                      title="Adjust font size for text annotations (8-48px)"
                     />
                     <span className="text-xs text-gray-600 w-8">{fontSize}</span>
                   </div>
@@ -212,7 +213,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             <button
               onClick={deleteSelectedAnnotations}
               className="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded"
-              title="Delete Selected (Delete key)"
+              title={`Delete selected annotation${selectedAnnotationIds.length > 1 ? 's' : ''} (Delete or Backspace key)`}
             >
               🗑 Delete {selectedAnnotationIds.length > 1 ? `(${selectedAnnotationIds.length})` : ''}
             </button>
@@ -223,17 +224,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={onZoomOut}
             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-            title="Zoom Out"
+            title="Zoom out (- key)"
           >
             -
           </button>
-          <span className="text-sm text-gray-700 w-16 text-center">
+          <span className="text-sm text-gray-700 w-16 text-center" title="Current zoom level">
             {Math.round(zoom * 100)}%
           </span>
           <button
             onClick={onZoomIn}
             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded"
-            title="Zoom In"
+            title="Zoom in (+ or = key)"
           >
             +
           </button>
