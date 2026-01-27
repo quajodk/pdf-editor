@@ -437,7 +437,7 @@
         "Verify error message appears",
         "Verify app remains functional"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 37,
@@ -472,7 +472,7 @@
         "Verify UI indicates progress",
         "Verify spinner disappears when loaded"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 40,
