@@ -83,7 +83,7 @@
         "Click delete button",
         "Verify text is removed"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 8,
@@ -95,7 +95,7 @@
         "Change font size from toolbar",
         "Verify text size changes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 9,
@@ -107,7 +107,7 @@
         "Choose color from color picker",
         "Verify text color changes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 10,
@@ -119,7 +119,7 @@
         "Choose font from dropdown",
         "Verify font family changes"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 11,
@@ -143,7 +143,7 @@
         "Draw on PDF",
         "Verify drawing has correct color"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 13,
@@ -155,7 +155,7 @@
         "Draw on PDF",
         "Verify drawing has correct width"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 14,
