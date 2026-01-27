@@ -496,7 +496,7 @@
         "Verify all controls are announced",
         "Verify ARIA labels present"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 42,
@@ -507,7 +507,7 @@
         "Verify text contrast ratio ≥ 4.5:1",
         "Verify controls contrast ≥ 3:1"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 43,

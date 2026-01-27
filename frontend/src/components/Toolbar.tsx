@@ -73,6 +73,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             onClick={onClose}
             className="px-3 py-1.5 text-sm bg-gray-200 hover:bg-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             title="Close editor and return to home"
+            aria-label="Close PDF editor and return to home"
           >
             ← Back
           </button>
@@ -84,6 +85,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             disabled={!canUndo}
             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
             title="Undo last action (Ctrl+Z or Cmd+Z)"
+            aria-label="Undo last action"
           >
             ↶ Undo
           </button>
@@ -93,6 +95,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             disabled={!canRedo}
             className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
             title="Redo undone action (Ctrl+Y or Cmd+Y)"
+            aria-label="Redo undone action"
           >
             ↷ Redo
           </button>
@@ -127,6 +130,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
               }`}
               title={tool.tooltip}
+              aria-label={`${tool.label} tool`}
             >
               <span className="text-lg">{tool.icon}</span>
             </button>
