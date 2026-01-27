@@ -167,7 +167,7 @@
         "Erase part of drawing",
         "Verify erased area is removed"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 15,
