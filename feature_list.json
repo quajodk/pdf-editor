@@ -240,7 +240,7 @@
         "Place image on PDF",
         "Verify image appears"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 21,
@@ -275,7 +275,7 @@
         "Press delete key or delete button",
         "Verify image is removed"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 24,

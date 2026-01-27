@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { useEditorStore } from '../store/useEditorStore';
-import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation } from '../types';
+import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation } from '../types';
 import Toolbar from './Toolbar';
 import PDFCanvas from './PDFCanvas';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -173,6 +173,35 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
                 color: rgb(color.r, color.g, color.b),
               });
             }
+          }
+        } else if (annotation.type === 'image') {
+          const imageAnn = annotation as ImageAnnotation;
+
+          try {
+            // Fetch the image data from the base64 data URL
+            const imageData = imageAnn.data.src;
+            let embeddedImage;
+
+            if (imageData.startsWith('data:image/png')) {
+              const pngImageBytes = await fetch(imageData).then(res => res.arrayBuffer());
+              embeddedImage = await pdfDoc.embedPng(pngImageBytes);
+            } else if (imageData.startsWith('data:image/jpeg') || imageData.startsWith('data:image/jpg')) {
+              const jpgImageBytes = await fetch(imageData).then(res => res.arrayBuffer());
+              embeddedImage = await pdfDoc.embedJpg(jpgImageBytes);
+            } else {
+              // Try PNG as default
+              const pngImageBytes = await fetch(imageData).then(res => res.arrayBuffer());
+              embeddedImage = await pdfDoc.embedPng(pngImageBytes);
+            }
+
+            page.drawImage(embeddedImage, {
+              x: imageAnn.x,
+              y: pageHeight - imageAnn.y - (imageAnn.height || 0),
+              width: imageAnn.width || 100,
+              height: imageAnn.height || 100,
+            });
+          } catch (error) {
+            console.error('Error drawing image annotation:', error);
           }
         }
       }

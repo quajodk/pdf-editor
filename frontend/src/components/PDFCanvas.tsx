@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useEditorStore } from '../store/useEditorStore';
-import { Annotation, TextAnnotation, ShapeAnnotation, HighlightAnnotation } from '../types';
+import { Annotation, TextAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation } from '../types';
 
 interface PDFCanvasProps {
   pageNumber: number;
@@ -30,6 +30,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
   const [shapeEnd, setShapeEnd] = useState<{ x: number; y: number } | null>(null);
+  const [pendingImagePosition, setPendingImagePosition] = useState<{ x: number; y: number } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -40,6 +42,9 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
     if (currentTool === 'text') {
       setTextInput({ x, y, text: '' });
+    } else if (currentTool === 'image') {
+      setPendingImagePosition({ x, y });
+      imageInputRef.current?.click();
     } else if (currentTool === 'pen') {
       setIsDrawing(true);
       setCurrentPath([{ x, y }]);
@@ -53,8 +58,12 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         if (ann.type === 'text') {
           // Simple bounding box check for text
           return x >= ann.x && x <= ann.x + 100 && y >= ann.y - 20 && y <= ann.y + 20;
+        } else if (ann.type === 'image') {
+          // Bounding box check for images
+          return x >= ann.x && x <= ann.x + (ann.width || 0) &&
+                 y >= ann.y && y <= ann.y + (ann.height || 0);
         }
-        // TODO: Add click detection for other annotation types
+        // TODO: Add click detection for other annotation types (shapes, drawings, highlights)
         return false;
       });
       setSelectedAnnotation(clickedAnnotation?.id || null);
@@ -159,6 +168,47 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     }
 
     setIsDrawing(false);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !pendingImagePosition) return;
+
+    // Check if file is an image
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const annotation: ImageAnnotation = {
+          id: Date.now().toString(),
+          type: 'image',
+          pageNumber,
+          x: pendingImagePosition.x,
+          y: pendingImagePosition.y,
+          width: img.width > 300 ? 300 : img.width, // Default max width 300px
+          height: img.height > 300 ? (300 / img.width) * img.height : img.height,
+          data: {
+            src: event.target?.result as string,
+            originalWidth: img.width,
+            originalHeight: img.height,
+          },
+        };
+        addAnnotation(annotation);
+        setPendingImagePosition(null);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+
+    // Reset file input
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
   };
 
   const handleTextSubmit = () => {
@@ -421,7 +471,38 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           }
           return null;
         })}
+
+        {/* Render image annotations */}
+        {pageAnnotations.map((annotation) => {
+          if (annotation.type === 'image') {
+            const imgAnn = annotation as ImageAnnotation;
+            return (
+              <img
+                key={annotation.id}
+                src={imgAnn.data.src}
+                alt="annotation"
+                className="absolute pointer-events-none"
+                style={{
+                  left: annotation.x,
+                  top: annotation.y,
+                  width: annotation.width,
+                  height: annotation.height,
+                }}
+              />
+            );
+          }
+          return null;
+        })}
       </div>
+
+      {/* Hidden file input for image upload */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleImageUpload}
+        style={{ display: 'none' }}
+      />
 
       {/* Text input overlay */}
       {textInput && (

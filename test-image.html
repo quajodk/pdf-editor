@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Generate Test Image</title>
+</head>
+<body>
+  <h1>Test Image for PDF Editor</h1>
+  <canvas id="canvas" width="200" height="200"></canvas>
+  <br>
+  <button id="download">Download Test Image</button>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    // Draw a simple test image
+    ctx.fillStyle = '#4CAF50';
+    ctx.fillRect(0, 0, 200, 200);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '30px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('TEST', 100, 100);
+    ctx.fillText('IMAGE', 100, 140);
+
+    document.getElementById('download').addEventListener('click', () => {
+      canvas.toBlob((blob) => {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'test-image.png';
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+    });
+  </script>
+</body>
+</html>
