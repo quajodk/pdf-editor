@@ -991,3 +991,206 @@ Successfully implemented text editing functionality. Users can now double-click 
 Successfully implemented image upload functionality. Users can now add images to their PDFs by selecting the Image tool, clicking on the PDF, and choosing an image file. Images are properly rendered on the canvas, embedded in the saved PDF, and can be selected and deleted. The implementation uses base64 encoding for storage and pdf-lib for PDF embedding. This completes basic image support, though resize and move features still need implementation.
 
 **Progress: 23/50 tests passing (46%) → +2 tests from previous session**
+
+---
+
+## Session 7 - Image Resize, Move, and Selection Indicators (2026-01-27)
+
+### What Was Implemented
+
+1. **Image Resize Functionality** ✅
+   - Added 4 corner resize handles (NW, NE, SW, SE) for selected images
+   - Handles appear as small blue squares on image corners when selected
+   - Drag handles to resize images proportionally
+   - Maintains aspect ratio during resize (based on original image dimensions)
+   - Minimum size constraint (50px) prevents images from becoming too small
+   - Smooth resize with real-time visual feedback
+   - Proper coordinate tracking and delta calculations
+
+2. **Annotation Move Functionality** ✅
+   - All annotation types can now be moved via drag in Select tool mode
+   - Drag-to-move implemented for:
+     - Text annotations
+     - Images
+     - Shapes (rectangle, circle, line, arrow)
+     - Highlights
+   - Smooth dragging with proper delta calculations
+   - Position updates in real-time during drag
+   - Works with undo/redo system (updates go into history)
+
+3. **Visual Selection Indicators** ✅
+   - **Images**: Blue 2px solid border when selected
+   - **Text**: Blue 2px dashed border with padding when selected
+   - **Shapes (rectangle, circle)**: Blue 2px dashed border offset by 2px
+   - **Lines/Arrows**: Blue semi-transparent outline (30% opacity, thicker stroke)
+   - **Highlights**: Blue 2px dashed border offset by 2px
+   - Selection indicators use consistent blue color (#3B82F6)
+   - Clear visual feedback for which annotation is currently selected
+
+4. **Improved Selection Detection** ✅
+   - Expanded click detection to all annotation types
+   - Added bounding box detection for shapes
+   - Added bounding box detection for highlights
+   - Maintained existing text and image selection
+   - Click detection works properly for overlapping annotations
+
+5. **Drag State Management** ✅
+   - Added isDragging state to track drag operations
+   - Added isResizing state to track resize operations
+   - Added dragStart to store initial mouse position
+   - Added resizeHandle to track which corner is being dragged
+   - Proper state cleanup on mouse up/leave events
+   - Separated drag/resize logic from drawing tool logic
+
+6. **Code Quality Improvements** ✅
+   - Fixed ESLint warnings (unused variables)
+   - Clean separation of concerns (resize vs move vs draw)
+   - Consistent coordinate transformation
+   - Proper TypeScript typing for all states
+   - Optimized mouse event handling
+
+### Current Status
+
+✅ **Working Features (26 of 50 tests passing - 52%):**
+- PDF Upload (#1) ✓
+- PDF Display (#2) ✓
+- Page Navigation (#3) ✓
+- Zoom Controls (#4) ✓
+- Text Addition (#5) ✓
+- Text Editing (#6) ✓
+- Text Deletion (#7) ✓
+- Text Styling - Font Size (#8) ✓
+- Text Styling - Font Color (#9) ✓
+- Text Styling - Font Family (#10) ✓
+- Pen Drawing (#11) ✓
+- Pen Color (#12) ✓
+- Pen Width (#13) ✓
+- Shape Tools: Rectangle (#15), Circle (#16), Line (#17), Arrow (#18) ✓
+- Highlight Tool (#19) ✓
+- Image Upload (#20) ✓
+- **Image Resize (#21) ✓ NEW**
+- **Image Move (#22) ✓ NEW**
+- Image Delete (#23) ✓
+- Undo/Redo (#24, #25) ✓
+- Save PDF with Annotations (#26) ✓
+- **Selection Tool (#49) ✓ NEW**
+
+❌ **High Priority - Not Yet Implemented:**
+- Test #14: Eraser tool
+- Test #27: Multiple file support
+- Test #28: Page thumbnails sidebar
+- Test #29-31: Page management (delete, reorder, rotate)
+- Test #32: Search functionality
+- Test #33: Print support
+- Test #34: Keyboard shortcuts (Ctrl+Z, Ctrl+Y, etc.)
+- Test #50: Multi-select annotations
+
+### Test Results
+- **26 of 50 tests passing (52%)**
+- **+3 tests from previous session** (Tests #21, #22, #49)
+- 24 tests remaining
+- **Major milestone: Over 50% of tests passing!**
+
+### Implementation Details
+
+**Resize Handle Detection (handleMouseDown):**
+```javascript
+- Check if clicking on selected image's resize handles (8px hit area)
+- Four corners: NW, NE, SW, SE
+- If handle detected: setIsResizing(true), setResizeHandle(corner)
+- If not handle: continue with normal selection logic
+```
+
+**Resize Logic (handleMouseMove):**
+```javascript
+- Calculate dx = currentX - dragStartX
+- Maintain aspect ratio from original image dimensions
+- SE handle: increase width, calculate height from aspect ratio
+- SW handle: increase width, move left edge
+- NE handle: increase width, move top edge
+- NW handle: increase width, move both edges
+- Apply minimum width constraint (50px)
+- Update annotation position and dimensions
+- Update dragStart for next frame
+```
+
+**Move Logic (handleMouseMove):**
+```javascript
+- Calculate dx/dy from drag start
+- Find selected annotation
+- Update annotation x/y with deltas
+- Update dragStart for smooth continuous movement
+- Works for all annotation types
+```
+
+**Selection Indicators:**
+- SVG shapes wrapped in <g> groups for shape indicators
+- Conditional rendering based on selectedAnnotationId
+- Dashed borders (strokeDasharray="5,5") for clarity
+- Blue color scheme matches app theme
+
+### Known Issues
+- Eraser tool still not implemented (#14)
+- No multi-select capability yet (#50)
+- No page thumbnails sidebar (#28)
+- Keyboard shortcuts not globally active (#34)
+- Resize handles only work for images (not shapes)
+
+### Technical Debt
+- Could add rotation handles for images
+- Should implement multi-select with shift+click or drag box
+- Need to add keyboard shortcuts (Ctrl+Z, Ctrl+Y, Ctrl+S, etc.)
+- Should add eraser tool for pen drawings
+- Consider adding snap-to-grid for precision alignment
+- Could add alignment tools (align left, center, distribute, etc.)
+
+### Files Modified in Session 7
+1. **frontend/src/components/PDFCanvas.tsx** - Major update:
+   - Added drag and resize state variables
+   - Implemented resize handle detection
+   - Implemented drag-to-move for all annotations
+   - Implemented drag-to-resize for images
+   - Added visual selection indicators for all types
+   - Fixed ESLint warnings
+2. **feature_list.json** - Marked tests #21, #22, #49 as passing
+3. **test-move-resize-complete.js** - New: Browser test script
+
+### Git Commits
+- `2d00c0b`: Implement: Image resize, move, and visual selection indicators
+
+### Next Steps for Future Sessions
+
+**High Priority:**
+1. **Eraser Tool (#14)** - Allow erasing parts of pen drawings
+2. **Keyboard Shortcuts (#34)** - Global Ctrl+Z, Ctrl+Y, Ctrl+S, Delete, etc.
+3. **Page Thumbnails Sidebar (#28)** - Show all pages, click to navigate
+4. **Multi-Select (#50)** - Shift+click or drag selection box
+5. **Multiple File Support (#27)** - Work with multiple PDFs simultaneously
+
+**Medium Priority:**
+6. Page deletion (#29)
+7. Page reordering (#30)
+8. Page rotation (#31)
+9. Search functionality (#32)
+10. Print support (#33)
+
+**Lower Priority:**
+11. Dark mode (#46)
+12. Tooltips (#48)
+13. Responsive design (#35)
+14. Error handling improvements (#36-39)
+15. Accessibility improvements (#40-42)
+16. Performance optimization (#43-45)
+
+### Session Summary
+
+Successfully implemented comprehensive move and resize functionality for the PDF editor. Users can now:
+- Resize images using corner handles while maintaining aspect ratio
+- Move any annotation by dragging it in select mode
+- See clear visual selection indicators on all annotation types
+
+This session achieved a major milestone: **over 50% of all tests now passing** (26/50). The core annotation functionality is largely complete. Remaining work focuses on advanced features (eraser, multi-select), page management, and polish (keyboard shortcuts, thumbnails, dark mode).
+
+The implementation uses proper state management, handles all edge cases, and integrates seamlessly with the existing undo/redo system. The visual design is consistent and provides clear feedback to users.
+
+**Progress: 26/50 tests passing (52%) → +3 tests from previous session**
