@@ -1970,3 +1970,212 @@ This brings the project past **62% completion (31/50 tests passing)**. All page 
 
 ---
 
+
+## Session 12 - Page Reordering Feature (2026-01-27)
+
+### What Was Implemented
+
+1. **Page Reordering with Drag-and-Drop** ✅
+   - Added full drag-and-drop functionality to page thumbnails
+   - Users can drag any page thumbnail to a new position to reorder pages
+   - Visual feedback during drag operation:
+     - Dragged page shows reduced opacity (50%)
+     - Target drop location highlighted with green ring (ring-4 ring-green-500)
+     - Target page scales up slightly (transform scale-105)
+   - Smooth drag experience with proper event handling
+   - Works seamlessly with multi-page PDFs
+
+2. **PDF Reordering Implementation** ✅
+   - Uses pdf-lib to rebuild PDF with pages in new order
+   - Creates new PDF document with pages copied in desired sequence
+   - Implemented smart page number mapping:
+     - Removes dragged page from original position
+     - Inserts it at target position
+     - All other pages shift accordingly
+   - Annotations automatically adjusted to match new page numbers
+   - Current page tracking updated intelligently after reorder
+   - Loading indicator shown during reorder operation
+
+3. **Drag-and-Drop State Management** ✅
+   - Added `draggedPage` state to track which page is being dragged
+   - Added `dragOverPage` state to highlight drop target
+   - Implemented drag event handlers:
+     - `handleDragStart`: Initiates drag, sets dragged page
+     - `handleDragOver`: Highlights target location
+     - `handleDragLeave`: Removes highlight when leaving
+     - `handleDrop`: Executes reorder operation
+     - `handleDragEnd`: Cleans up drag state
+   - Proper state cleanup to prevent visual glitches
+
+4. **Component Updates** ✅
+   - **PageThumbnails.tsx**:
+     - Added `onPageReorder` prop to interface
+     - Made thumbnail divs draggable with `draggable` attribute
+     - Added all drag event handlers to thumbnails
+     - Applied visual feedback classes conditionally
+     - Changed cursor to `cursor-move` to indicate draggability
+   - **PDFEditor.tsx**:
+     - Implemented `handlePageReorder` async function
+     - Page order calculation with array manipulation
+     - PDF document recreation with pdf-lib
+     - Annotation remapping to new page numbers
+     - Current page adjustment logic
+     - Passed `onPageReorder` handler to PageThumbnails
+
+5. **Browser Testing** ✅
+   - Created test-page-reordering.js automated test script
+   - Test performs actual drag-and-drop operation via Puppeteer
+   - Drags page 1 to position 3, verifying full reorder
+   - Captured 6 screenshots documenting the process:
+     1. Initial state
+     2. Thumbnails sidebar open
+     3. Drag started (page 1)
+     4. Dragging over target (page 3 position)
+     5. After drop (reordering in progress)
+     6. Final state (pages reordered)
+   - Verified no console errors during operation
+   - All functionality working as expected
+
+### Current Status
+
+✅ **Working Features (32 of 50 tests passing - 64%):**
+- PDF Upload (#1) ✓
+- PDF Display (#2) ✓
+- Page Navigation (#3) ✓
+- Zoom Controls (#4) ✓
+- Text Addition (#5) ✓
+- Text Editing (#6) ✓
+- Text Deletion (#7) ✓
+- Text Styling - Font Size (#8) ✓
+- Text Styling - Font Color (#9) ✓
+- Text Styling - Font Family (#10) ✓
+- Pen Drawing (#11) ✓
+- Pen Color (#12) ✓
+- Pen Width (#13) ✓
+- Eraser Tool (#14) ✓
+- Shape Tools: Rectangle (#15), Circle (#16), Line (#17), Arrow (#18) ✓
+- Highlight Tool (#19) ✓
+- Image Upload (#20) ✓
+- Image Resize (#21) ✓
+- Image Move (#22) ✓
+- Image Delete (#23) ✓
+- Undo/Redo (#24, #25) ✓
+- Save PDF with Annotations (#26) ✓
+- Page Thumbnails (#28) ✓
+- Page Deletion (#29) ✓
+- **Page Reordering (#30) ✓ NEW**
+- Page Rotation (#31) ✓
+- Keyboard Shortcuts (#34) ✓
+- Selection Tool (#49) ✓
+
+### Test Results
+- **32 of 50 tests passing (64%)**
+- **+1 test from previous session** (Test #30)
+- **18 tests remaining**
+- **Major milestone: All page management features complete!**
+
+### Implementation Details
+
+**Page Reordering Flow:**
+```
+1. User opens page thumbnails sidebar
+2. User clicks and holds on a page thumbnail
+3. Page becomes semi-transparent (dragging state)
+4. User drags to target position
+5. Target position highlighted with green ring
+6. User releases mouse to drop
+7. handlePageReorder executes:
+   - Calculate new page order array
+   - Load PDF with pdf-lib
+   - Create new PDF document
+   - Copy pages in new order
+   - Save modified PDF to File object
+   - Update currentFile state
+   - Remap all annotation page numbers
+   - Adjust current page if needed
+   - Force component re-render
+8. PDF displays with pages in new order
+9. Annotations appear on correct pages
+```
+
+**Page Order Calculation:**
+```javascript
+// Start with original order: [1, 2, 3]
+const pageOrder = [1, 2, 3];
+
+// User drags page 1 to position 3
+pageOrder.splice(0, 1);      // Remove from position 0: [2, 3]
+pageOrder.splice(2, 0, 1);   // Insert at position 2: [2, 3, 1]
+
+// New order: [2, 3, 1]
+// Page 1 → position 3
+// Page 2 → position 1
+// Page 3 → position 2
+```
+
+**Annotation Remapping:**
+```javascript
+// For each annotation, find its new page number
+const reorderedAnnotations = allAnnotations.map(ann => {
+  const oldPageNum = ann.pageNumber;
+  const newPageNum = pageOrder.indexOf(oldPageNum) + 1;
+  return { ...ann, pageNumber: newPageNum };
+});
+```
+
+### Known Issues
+- None identified with page reordering feature
+- 18 tests still need implementation
+
+### Files Modified/Created in Session 12
+1. **frontend/src/components/PageThumbnails.tsx** - Added drag-and-drop UI and handlers
+2. **frontend/src/components/PDFEditor.tsx** - Implemented page reordering logic
+3. **feature_list.json** - Marked test #30 as passing
+4. **test-page-reordering.js** - New: Browser automation test
+5. **screenshots/reorder-*.png** - 6 screenshots documenting drag-and-drop
+
+### Git Commits
+- `bbc3677`: Implement: Page reordering with drag-and-drop
+
+### Next Steps for Future Sessions
+
+**High Priority - Advanced Features:**
+1. **Multi-Select Annotations (#50)** - Shift+click or drag selection box
+2. **Multiple File Support (#27)** - Work with multiple PDFs simultaneously
+3. **Search Text (#32)** - Find text within PDF
+4. **Print Support (#33)** - Print PDF with annotations
+
+**Medium Priority - UI Polish:**
+5. **Tooltips (#48)** - Add tooltips to all tools
+6. **Toolbar Organization (#47)** - Review and improve toolbar layout
+7. **Dark Mode (#46)** - Implement dark theme
+
+**Lower Priority - Quality:**
+8. **Responsive Design (#35)** - Mobile and tablet optimization
+9. **Error Handling (#36-38)** - Invalid files, large files, corrupted PDFs
+10. **Loading States (#39)** - Better loading indicators
+11. **Accessibility (#40-42)** - Keyboard nav, screen reader, color contrast
+12. **Performance (#43-45)** - Rendering speed, smooth scrolling, memory management
+
+### Session Summary
+
+Successfully implemented comprehensive page reordering functionality using drag-and-drop. Users can now reorder pages in their PDFs by simply dragging page thumbnails to new positions in the sidebar. The implementation:
+
+- Provides clear visual feedback during drag operations
+- Rebuilds the PDF document with pages in the new order
+- Automatically adjusts all annotations to match new page numbers
+- Handles current page tracking intelligently
+- Works seamlessly with all existing features (rotation, deletion, annotations)
+
+This completes **all page management features** for the PDF editor:
+- ✅ Page Thumbnails (visual navigation)
+- ✅ Page Deletion (remove pages)
+- ✅ Page Rotation (rotate 90° increments)
+- ✅ Page Reordering (drag-and-drop)
+
+The project has reached **64% completion (32/50 tests passing)**. The core editing and page management features are complete. Remaining work focuses on advanced features (multi-select, multiple files, search, print) and polish (tooltips, dark mode, accessibility, performance).
+
+**Progress: 32/50 tests passing (64%) → +1 test from previous session**
+
+---
+
