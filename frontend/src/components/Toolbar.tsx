@@ -7,6 +7,7 @@ interface ToolbarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onDownload: () => void;
+  downloading?: boolean;
   zoom: number;
   currentPage: number;
   totalPages: number;
@@ -18,6 +19,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onZoomIn,
   onZoomOut,
   onDownload,
+  downloading = false,
   zoom,
   currentPage,
   totalPages,
@@ -76,10 +78,18 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
           <button
             onClick={onDownload}
-            className="px-3 py-1.5 text-sm bg-green-600 text-white hover:bg-green-700 rounded"
+            disabled={downloading}
+            className="px-3 py-1.5 text-sm bg-green-600 text-white hover:bg-green-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             title="Download PDF (Ctrl+S)"
           >
-            ⬇ Save
+            {downloading ? (
+              <>
+                <span className="animate-spin">⏳</span>
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>⬇ Save</>
+            )}
           </button>
         </div>
 

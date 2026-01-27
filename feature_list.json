@@ -310,7 +310,7 @@
         "Click 'Save' or 'Download' button",
         "Verify PDF downloads with edits preserved"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 27,

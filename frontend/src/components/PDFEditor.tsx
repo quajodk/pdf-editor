@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { useEditorStore } from '../store/useEditorStore';
+import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation } from '../types';
 import Toolbar from './Toolbar';
 import PDFCanvas from './PDFCanvas';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -17,7 +19,8 @@ interface PDFEditorProps {
 const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [loading, setLoading] = useState(true);
-  const { currentPage, setCurrentPage, setTotalPages, zoom, setZoom } = useEditorStore();
+  const [downloading, setDownloading] = useState(false);
+  const { currentPage, setCurrentPage, setTotalPages, zoom, setZoom, annotations } = useEditorStore();
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -52,17 +55,145 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
     setZoom(zoom - 0.1);
   };
 
-  const handleDownload = () => {
-    // For now, download the original PDF
-    // TODO: Render annotations onto PDF before download
-    const url = URL.createObjectURL(file);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = file.name.replace('.pdf', '_edited.pdf');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result
+      ? {
+          r: parseInt(result[1], 16) / 255,
+          g: parseInt(result[2], 16) / 255,
+          b: parseInt(result[3], 16) / 255,
+        }
+      : { r: 0, g: 0, b: 0 };
+  };
+
+  const handleDownload = async () => {
+    if (annotations.length === 0) {
+      // If no annotations, just download the original
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.name.replace('.pdf', '_edited.pdf');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    setDownloading(true);
+    try {
+      // Load the original PDF
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pages = pdfDoc.getPages();
+
+      // Render annotations onto each page
+      for (const annotation of annotations) {
+        const pageIndex = annotation.pageNumber - 1;
+        if (pageIndex < 0 || pageIndex >= pages.length) continue;
+
+        const page = pages[pageIndex];
+        const { height: pageHeight } = page.getSize();
+
+        if (annotation.type === 'text') {
+          const textAnn = annotation as TextAnnotation;
+          const color = hexToRgb(textAnn.data.color);
+
+          try {
+            page.drawText(textAnn.data.text, {
+              x: textAnn.x,
+              y: pageHeight - textAnn.y - textAnn.data.fontSize,
+              size: textAnn.data.fontSize,
+              color: rgb(color.r, color.g, color.b),
+            });
+          } catch (error) {
+            console.error('Error drawing text annotation:', error);
+          }
+        } else if (annotation.type === 'shape') {
+          const shapeAnn = annotation as ShapeAnnotation;
+          const color = hexToRgb(shapeAnn.data.strokeColor);
+
+          if (shapeAnn.data.shapeType === 'rectangle') {
+            page.drawRectangle({
+              x: shapeAnn.x,
+              y: pageHeight - shapeAnn.y - (shapeAnn.height || 0),
+              width: shapeAnn.width || 0,
+              height: shapeAnn.height || 0,
+              borderColor: rgb(color.r, color.g, color.b),
+              borderWidth: shapeAnn.data.strokeWidth,
+            });
+          } else if (shapeAnn.data.shapeType === 'circle') {
+            const centerX = shapeAnn.x + (shapeAnn.width || 0) / 2;
+            const centerY = pageHeight - shapeAnn.y - (shapeAnn.height || 0) / 2;
+            const radiusX = (shapeAnn.width || 0) / 2;
+            const radiusY = (shapeAnn.height || 0) / 2;
+
+            page.drawEllipse({
+              x: centerX,
+              y: centerY,
+              xScale: radiusX,
+              yScale: radiusY,
+              borderColor: rgb(color.r, color.g, color.b),
+              borderWidth: shapeAnn.data.strokeWidth,
+            });
+          } else if (shapeAnn.data.shapeType === 'line' || shapeAnn.data.shapeType === 'arrow') {
+            page.drawLine({
+              start: { x: shapeAnn.x, y: pageHeight - shapeAnn.y },
+              end: { x: shapeAnn.data.endX || shapeAnn.x, y: pageHeight - (shapeAnn.data.endY || shapeAnn.y) },
+              thickness: shapeAnn.data.strokeWidth,
+              color: rgb(color.r, color.g, color.b),
+            });
+            // Note: Arrow heads are not rendered in pdf-lib (limitation)
+          }
+        } else if (annotation.type === 'highlight') {
+          const highlightAnn = annotation as HighlightAnnotation;
+          const color = hexToRgb(highlightAnn.data.color);
+
+          page.drawRectangle({
+            x: highlightAnn.x,
+            y: pageHeight - highlightAnn.y - (highlightAnn.height || 0),
+            width: highlightAnn.width || 0,
+            height: highlightAnn.height || 0,
+            color: rgb(color.r, color.g, color.b),
+            opacity: highlightAnn.data.opacity,
+          });
+        } else if (annotation.type === 'drawing') {
+          const drawingAnn = annotation as DrawingAnnotation;
+          const color = hexToRgb(drawingAnn.data.color);
+
+          // Draw each path as a series of connected lines
+          for (const path of drawingAnn.data.paths) {
+            for (let i = 0; i < path.length - 1; i++) {
+              const point1 = path[i];
+              const point2 = path[i + 1];
+              page.drawLine({
+                start: { x: point1.x, y: pageHeight - point1.y },
+                end: { x: point2.x, y: pageHeight - point2.y },
+                thickness: drawingAnn.data.width,
+                color: rgb(color.r, color.g, color.b),
+              });
+            }
+          }
+        }
+      }
+
+      // Save and download the modified PDF
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.name.replace('.pdf', '_edited.pdf');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Failed to download PDF with annotations. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -72,6 +203,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
         onDownload={handleDownload}
+        downloading={downloading}
         zoom={zoom}
         currentPage={currentPage}
         totalPages={numPages}
