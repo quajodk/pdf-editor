@@ -13,6 +13,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     currentTool,
     annotations,
     addAnnotation,
+    updateAnnotation,
     deleteAnnotation,
     selectedAnnotationId,
     setSelectedAnnotation,
@@ -26,6 +27,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
   const [textInput, setTextInput] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
   const [shapeEnd, setShapeEnd] = useState<{ x: number; y: number } | null>(null);
 
@@ -56,6 +58,29 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         return false;
       });
       setSelectedAnnotation(clickedAnnotation?.id || null);
+    }
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Find text annotation at click position and enable editing
+    const clickedAnnotation = pageAnnotations.find((ann) => {
+      if (ann.type === 'text') {
+        // Simple bounding box check for text
+        return x >= ann.x && x <= ann.x + 100 && y >= ann.y - 20 && y <= ann.y + 20;
+      }
+      return false;
+    });
+
+    if (clickedAnnotation && clickedAnnotation.type === 'text') {
+      setEditingTextId(clickedAnnotation.id);
+      const textAnn = clickedAnnotation as TextAnnotation;
+      setTextInput({ x: clickedAnnotation.x, y: clickedAnnotation.y, text: textAnn.data.text });
     }
   };
 
@@ -138,20 +163,32 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
   const handleTextSubmit = () => {
     if (textInput && textInput.text.trim()) {
-      const annotation: TextAnnotation = {
-        id: Date.now().toString(),
-        type: 'text',
-        pageNumber,
-        x: textInput.x,
-        y: textInput.y,
-        data: {
-          text: textInput.text,
-          fontSize,
-          fontFamily,
-          color: fontColor,
-        },
-      };
-      addAnnotation(annotation);
+      if (editingTextId) {
+        // Update existing annotation
+        updateAnnotation(editingTextId, {
+          data: {
+            ...annotations.find(a => a.id === editingTextId)?.data,
+            text: textInput.text,
+          },
+        });
+        setEditingTextId(null);
+      } else {
+        // Add new annotation
+        const annotation: TextAnnotation = {
+          id: Date.now().toString(),
+          type: 'text',
+          pageNumber,
+          x: textInput.x,
+          y: textInput.y,
+          data: {
+            text: textInput.text,
+            fontSize,
+            fontFamily,
+            color: fontColor,
+          },
+        };
+        addAnnotation(annotation);
+      }
     }
     setTextInput(null);
   };
@@ -176,12 +213,13 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     <>
       <div
         ref={canvasRef}
-        className="absolute inset-0 cursor-crosshair"
+        className="absolute inset-0"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        style={{ pointerEvents: currentTool !== 'select' ? 'auto' : 'none' }}
+        onDoubleClick={handleDoubleClick}
+        style={{ pointerEvents: 'auto', cursor: currentTool === 'select' ? 'default' : 'crosshair' }}
       >
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
           {/* Render current drawing path */}
@@ -359,7 +397,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
         {/* Render text annotations */}
         {pageAnnotations.map((annotation) => {
-          if (annotation.type === 'text') {
+          if (annotation.type === 'text' && annotation.id !== editingTextId) {
             const textAnn = annotation as TextAnnotation;
             return (
               <div
@@ -405,6 +443,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 handleTextSubmit();
               } else if (e.key === 'Escape') {
                 setTextInput(null);
+                setEditingTextId(null);
               }
             }}
             onBlur={handleTextSubmit}

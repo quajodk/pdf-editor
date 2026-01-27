@@ -71,7 +71,7 @@
         "Modify text content",
         "Verify changes are reflected"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 7,
