@@ -33,6 +33,12 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   const [pendingImagePosition, setPendingImagePosition] = useState<{ x: number; y: number } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  // For drag and resize
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [resizeHandle, setResizeHandle] = useState<'se' | 'sw' | 'ne' | 'nw' | null>(null);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -53,6 +59,50 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       setShapeStart({ x, y });
       setShapeEnd({ x, y });
     } else if (currentTool === 'select') {
+      // Check if clicking on a resize handle first
+      if (selectedAnnotationId) {
+        const selectedAnn = pageAnnotations.find(ann => ann.id === selectedAnnotationId);
+        if (selectedAnn && selectedAnn.type === 'image') {
+          const imgAnn = selectedAnn as ImageAnnotation;
+          const handleSize = 8;
+          const imgX = imgAnn.x;
+          const imgY = imgAnn.y;
+          const imgW = imgAnn.width || 0;
+          const imgH = imgAnn.height || 0;
+
+          // Check each corner handle
+          if (x >= imgX + imgW - handleSize && x <= imgX + imgW + handleSize &&
+              y >= imgY + imgH - handleSize && y <= imgY + imgH + handleSize) {
+            // Bottom-right handle
+            setIsResizing(true);
+            setResizeHandle('se');
+            setDragStart({ x, y });
+            return;
+          } else if (x >= imgX - handleSize && x <= imgX + handleSize &&
+                     y >= imgY + imgH - handleSize && y <= imgY + imgH + handleSize) {
+            // Bottom-left handle
+            setIsResizing(true);
+            setResizeHandle('sw');
+            setDragStart({ x, y });
+            return;
+          } else if (x >= imgX + imgW - handleSize && x <= imgX + imgW + handleSize &&
+                     y >= imgY - handleSize && y <= imgY + handleSize) {
+            // Top-right handle
+            setIsResizing(true);
+            setResizeHandle('ne');
+            setDragStart({ x, y });
+            return;
+          } else if (x >= imgX - handleSize && x <= imgX + handleSize &&
+                     y >= imgY - handleSize && y <= imgY + handleSize) {
+            // Top-left handle
+            setIsResizing(true);
+            setResizeHandle('nw');
+            setDragStart({ x, y });
+            return;
+          }
+        }
+      }
+
       // Find annotation at click position
       const clickedAnnotation = pageAnnotations.find((ann) => {
         if (ann.type === 'text') {
@@ -62,11 +112,24 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           // Bounding box check for images
           return x >= ann.x && x <= ann.x + (ann.width || 0) &&
                  y >= ann.y && y <= ann.y + (ann.height || 0);
+        } else if (ann.type === 'shape') {
+          return x >= ann.x && x <= ann.x + (ann.width || 0) &&
+                 y >= ann.y && y <= ann.y + (ann.height || 0);
+        } else if (ann.type === 'highlight') {
+          return x >= ann.x && x <= ann.x + (ann.width || 0) &&
+                 y >= ann.y && y <= ann.y + (ann.height || 0);
         }
-        // TODO: Add click detection for other annotation types (shapes, drawings, highlights)
         return false;
       });
-      setSelectedAnnotation(clickedAnnotation?.id || null);
+
+      if (clickedAnnotation) {
+        setSelectedAnnotation(clickedAnnotation.id);
+        // Start dragging
+        setIsDragging(true);
+        setDragStart({ x, y });
+      } else {
+        setSelectedAnnotation(null);
+      }
     }
   };
 
@@ -94,13 +157,77 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDrawing) return;
-
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Handle resizing
+    if (isResizing && dragStart && selectedAnnotationId && resizeHandle) {
+      const selectedAnn = pageAnnotations.find(ann => ann.id === selectedAnnotationId);
+      if (selectedAnn && selectedAnn.type === 'image') {
+        const imgAnn = selectedAnn as ImageAnnotation;
+        const dx = x - dragStart.x;
+
+        let newX = imgAnn.x;
+        let newY = imgAnn.y;
+        let newWidth = imgAnn.width || 0;
+        let newHeight = imgAnn.height || 0;
+
+        // Calculate aspect ratio to maintain proportions
+        const aspectRatio = (imgAnn.data.originalWidth || 1) / (imgAnn.data.originalHeight || 1);
+
+        if (resizeHandle === 'se') {
+          // Bottom-right: increase width and height
+          newWidth = Math.max(50, (imgAnn.width || 0) + dx);
+          newHeight = newWidth / aspectRatio;
+        } else if (resizeHandle === 'sw') {
+          // Bottom-left: move left edge and increase width
+          newWidth = Math.max(50, (imgAnn.width || 0) - dx);
+          newHeight = newWidth / aspectRatio;
+          newX = imgAnn.x + (imgAnn.width || 0) - newWidth;
+        } else if (resizeHandle === 'ne') {
+          // Top-right: move top edge and increase width
+          newWidth = Math.max(50, (imgAnn.width || 0) + dx);
+          newHeight = newWidth / aspectRatio;
+          newY = imgAnn.y + (imgAnn.height || 0) - newHeight;
+        } else if (resizeHandle === 'nw') {
+          // Top-left: move both edges
+          newWidth = Math.max(50, (imgAnn.width || 0) - dx);
+          newHeight = newWidth / aspectRatio;
+          newX = imgAnn.x + (imgAnn.width || 0) - newWidth;
+          newY = imgAnn.y + (imgAnn.height || 0) - newHeight;
+        }
+
+        updateAnnotation(selectedAnnotationId, {
+          x: newX,
+          y: newY,
+          width: newWidth,
+          height: newHeight,
+        });
+        setDragStart({ x, y });
+      }
+      return;
+    }
+
+    // Handle dragging
+    if (isDragging && dragStart && selectedAnnotationId) {
+      const dx = x - dragStart.x;
+      const dy = y - dragStart.y;
+
+      const selectedAnn = pageAnnotations.find(ann => ann.id === selectedAnnotationId);
+      if (selectedAnn) {
+        updateAnnotation(selectedAnnotationId, {
+          x: selectedAnn.x + dx,
+          y: selectedAnn.y + dy,
+        });
+        setDragStart({ x, y });
+      }
+      return;
+    }
+
+    if (!isDrawing) return;
 
     if (currentTool === 'pen') {
       setCurrentPath((prev) => [...prev, { x, y }]);
@@ -110,6 +237,20 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   };
 
   const handleMouseUp = () => {
+    // Reset dragging and resizing states
+    if (isDragging) {
+      setIsDragging(false);
+      setDragStart(null);
+      return;
+    }
+
+    if (isResizing) {
+      setIsResizing(false);
+      setResizeHandle(null);
+      setDragStart(null);
+      return;
+    }
+
     if (!isDrawing) return;
 
     if (currentTool === 'pen' && currentPath.length > 0) {
@@ -366,43 +507,82 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               ));
             } else if (annotation.type === 'shape') {
               const shape = annotation as ShapeAnnotation;
+              const isSelected = annotation.id === selectedAnnotationId;
               if (shape.data.shapeType === 'rectangle') {
                 return (
-                  <rect
-                    key={annotation.id}
-                    x={annotation.x}
-                    y={annotation.y}
-                    width={annotation.width}
-                    height={annotation.height}
-                    stroke={shape.data.strokeColor}
-                    strokeWidth={shape.data.strokeWidth}
-                    fill={shape.data.fillColor || 'none'}
-                  />
+                  <g key={annotation.id}>
+                    <rect
+                      x={annotation.x}
+                      y={annotation.y}
+                      width={annotation.width}
+                      height={annotation.height}
+                      stroke={shape.data.strokeColor}
+                      strokeWidth={shape.data.strokeWidth}
+                      fill={shape.data.fillColor || 'none'}
+                    />
+                    {isSelected && (
+                      <rect
+                        x={annotation.x - 2}
+                        y={annotation.y - 2}
+                        width={(annotation.width || 0) + 4}
+                        height={(annotation.height || 0) + 4}
+                        stroke="#3B82F6"
+                        strokeWidth={2}
+                        fill="none"
+                        strokeDasharray="5,5"
+                      />
+                    )}
+                  </g>
                 );
               } else if (shape.data.shapeType === 'circle') {
                 return (
-                  <ellipse
-                    key={annotation.id}
-                    cx={annotation.x + (annotation.width || 0) / 2}
-                    cy={annotation.y + (annotation.height || 0) / 2}
-                    rx={(annotation.width || 0) / 2}
-                    ry={(annotation.height || 0) / 2}
-                    stroke={shape.data.strokeColor}
-                    strokeWidth={shape.data.strokeWidth}
-                    fill={shape.data.fillColor || 'none'}
-                  />
+                  <g key={annotation.id}>
+                    <ellipse
+                      cx={annotation.x + (annotation.width || 0) / 2}
+                      cy={annotation.y + (annotation.height || 0) / 2}
+                      rx={(annotation.width || 0) / 2}
+                      ry={(annotation.height || 0) / 2}
+                      stroke={shape.data.strokeColor}
+                      strokeWidth={shape.data.strokeWidth}
+                      fill={shape.data.fillColor || 'none'}
+                    />
+                    {isSelected && (
+                      <rect
+                        x={annotation.x - 2}
+                        y={annotation.y - 2}
+                        width={(annotation.width || 0) + 4}
+                        height={(annotation.height || 0) + 4}
+                        stroke="#3B82F6"
+                        strokeWidth={2}
+                        fill="none"
+                        strokeDasharray="5,5"
+                      />
+                    )}
+                  </g>
                 );
               } else if (shape.data.shapeType === 'line') {
                 return (
-                  <line
-                    key={annotation.id}
-                    x1={annotation.x}
-                    y1={annotation.y}
-                    x2={shape.data.endX}
-                    y2={shape.data.endY}
-                    stroke={shape.data.strokeColor}
-                    strokeWidth={shape.data.strokeWidth}
-                  />
+                  <g key={annotation.id}>
+                    <line
+                      x1={annotation.x}
+                      y1={annotation.y}
+                      x2={shape.data.endX}
+                      y2={shape.data.endY}
+                      stroke={shape.data.strokeColor}
+                      strokeWidth={shape.data.strokeWidth}
+                    />
+                    {isSelected && (
+                      <line
+                        x1={annotation.x}
+                        y1={annotation.y}
+                        x2={shape.data.endX}
+                        y2={shape.data.endY}
+                        stroke="#3B82F6"
+                        strokeWidth={(shape.data.strokeWidth || 0) + 4}
+                        opacity={0.3}
+                      />
+                    )}
+                  </g>
                 );
               } else if (shape.data.shapeType === 'arrow') {
                 const angle = Math.atan2(
@@ -411,6 +591,17 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 ) * 180 / Math.PI;
                 return (
                   <g key={annotation.id}>
+                    {isSelected && (
+                      <line
+                        x1={annotation.x}
+                        y1={annotation.y}
+                        x2={shape.data.endX}
+                        y2={shape.data.endY}
+                        stroke="#3B82F6"
+                        strokeWidth={(shape.data.strokeWidth || 0) + 4}
+                        opacity={0.3}
+                      />
+                    )}
                     <line
                       x1={annotation.x}
                       y1={annotation.y}
@@ -429,16 +620,30 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               }
             } else if (annotation.type === 'highlight') {
               const highlight = annotation as HighlightAnnotation;
+              const isSelected = annotation.id === selectedAnnotationId;
               return (
-                <rect
-                  key={annotation.id}
-                  x={annotation.x}
-                  y={annotation.y}
-                  width={annotation.width}
-                  height={annotation.height}
-                  fill={highlight.data.color}
-                  opacity={highlight.data.opacity}
-                />
+                <g key={annotation.id}>
+                  <rect
+                    x={annotation.x}
+                    y={annotation.y}
+                    width={annotation.width}
+                    height={annotation.height}
+                    fill={highlight.data.color}
+                    opacity={highlight.data.opacity}
+                  />
+                  {isSelected && (
+                    <rect
+                      x={annotation.x - 2}
+                      y={annotation.y - 2}
+                      width={(annotation.width || 0) + 4}
+                      height={(annotation.height || 0) + 4}
+                      stroke="#3B82F6"
+                      strokeWidth={2}
+                      fill="none"
+                      strokeDasharray="5,5"
+                    />
+                  )}
+                </g>
               );
             }
             return null;
@@ -449,6 +654,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         {pageAnnotations.map((annotation) => {
           if (annotation.type === 'text' && annotation.id !== editingTextId) {
             const textAnn = annotation as TextAnnotation;
+            const isSelected = annotation.id === selectedAnnotationId;
             return (
               <div
                 key={annotation.id}
@@ -463,6 +669,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   fontStyle: textAnn.data.italic ? 'italic' : 'normal',
                   textDecoration: textAnn.data.underline ? 'underline' : 'none',
                   pointerEvents: 'none',
+                  border: isSelected ? '2px dashed #3B82F6' : 'none',
+                  padding: isSelected ? '2px' : '0',
                 }}
               >
                 {textAnn.data.text}
@@ -476,19 +684,75 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         {pageAnnotations.map((annotation) => {
           if (annotation.type === 'image') {
             const imgAnn = annotation as ImageAnnotation;
+            const isSelected = annotation.id === selectedAnnotationId;
             return (
-              <img
-                key={annotation.id}
-                src={imgAnn.data.src}
-                alt="annotation"
-                className="absolute pointer-events-none"
-                style={{
-                  left: annotation.x,
-                  top: annotation.y,
-                  width: annotation.width,
-                  height: annotation.height,
-                }}
-              />
+              <div key={annotation.id}>
+                <img
+                  src={imgAnn.data.src}
+                  alt="annotation"
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: annotation.x,
+                    top: annotation.y,
+                    width: annotation.width,
+                    height: annotation.height,
+                    border: isSelected ? '2px solid #3B82F6' : 'none',
+                  }}
+                />
+                {/* Resize handles for selected image */}
+                {isSelected && (
+                  <>
+                    {/* Top-left handle */}
+                    <div
+                      className="absolute bg-blue-500 border border-white"
+                      style={{
+                        left: annotation.x - 4,
+                        top: annotation.y - 4,
+                        width: 8,
+                        height: 8,
+                        cursor: 'nw-resize',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                    {/* Top-right handle */}
+                    <div
+                      className="absolute bg-blue-500 border border-white"
+                      style={{
+                        left: annotation.x + (annotation.width || 0) - 4,
+                        top: annotation.y - 4,
+                        width: 8,
+                        height: 8,
+                        cursor: 'ne-resize',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                    {/* Bottom-left handle */}
+                    <div
+                      className="absolute bg-blue-500 border border-white"
+                      style={{
+                        left: annotation.x - 4,
+                        top: annotation.y + (annotation.height || 0) - 4,
+                        width: 8,
+                        height: 8,
+                        cursor: 'sw-resize',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                    {/* Bottom-right handle */}
+                    <div
+                      className="absolute bg-blue-500 border border-white"
+                      style={{
+                        left: annotation.x + (annotation.width || 0) - 4,
+                        top: annotation.y + (annotation.height || 0) - 4,
+                        width: 8,
+                        height: 8,
+                        cursor: 'se-resize',
+                        pointerEvents: 'none',
+                      }}
+                    />
+                  </>
+                )}
+              </div>
             );
           }
           return null;

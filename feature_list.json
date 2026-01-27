@@ -252,7 +252,7 @@
         "Drag corner handles",
         "Verify image resizes proportionally"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 22,
@@ -263,7 +263,7 @@
         "Click and drag image",
         "Verify image moves to new position"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 23,
@@ -589,7 +589,7 @@
         "Drag to move",
         "Verify movement works"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 50,
