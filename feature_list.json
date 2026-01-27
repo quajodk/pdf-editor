@@ -553,7 +553,7 @@
         "Verify PDF remains readable",
         "Toggle back to light mode"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 47,

@@ -37,6 +37,7 @@ interface EditorState {
   searchResults: SearchResult[];
   currentSearchIndex: number;
   isSearchOpen: boolean;
+  darkMode: boolean;
 
   // Multiple file actions
   addDocument: (file: File) => string; // Returns document ID
@@ -71,6 +72,7 @@ interface EditorState {
   nextSearchResult: () => void;
   previousSearchResult: () => void;
   clearSearch: () => void;
+  toggleDarkMode: () => void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -97,6 +99,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   searchResults: [],
   currentSearchIndex: -1,
   isSearchOpen: false,
+  darkMode: false,
 
   // Multiple file actions
   addDocument: (file: File) => {
@@ -463,4 +466,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     searchResults: [],
     currentSearchIndex: -1
   }),
+
+  toggleDarkMode: () =>
+    set((state) => {
+      const newDarkMode = !state.darkMode;
+      // Update the document's root class for Tailwind dark mode
+      if (newDarkMode) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+      return { darkMode: newDarkMode };
+    }),
 }));

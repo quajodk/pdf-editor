@@ -674,7 +674,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
   }, [undo, redo, currentPage, numPages, zoom]);
 
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
       <Toolbar
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
@@ -702,12 +702,12 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         onToggle={() => setThumbnailsOpen(!thumbnailsOpen)}
       />
 
-      <div className="flex-1 overflow-auto bg-gray-200 p-4">
+      <div className="flex-1 overflow-auto bg-gray-200 dark:bg-gray-800 p-4 transition-colors">
         {loading && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading PDF...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
+              <p className="mt-4 text-gray-600 dark:text-gray-300">Loading PDF...</p>
             </div>
           </div>
         )}

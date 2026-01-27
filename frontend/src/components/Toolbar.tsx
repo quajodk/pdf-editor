@@ -68,13 +68,13 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const isTextTool = currentTool === 'text';
 
   return (
-    <div className="bg-white border-b shadow-sm">
+    <div className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm transition-colors">
       <div className="flex items-center justify-between px-4 py-2 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <button
             onClick={undo}
             disabled={!canUndo}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             title="Undo last action (Ctrl+Z or Cmd+Z)"
             aria-label="Undo last action"
           >
@@ -84,19 +84,19 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={redo}
             disabled={!canRedo}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             title="Redo undone action (Ctrl+Y or Cmd+Y)"
             aria-label="Redo undone action"
           >
             ↷ Redo
           </button>
 
-          <div className="h-6 w-px bg-gray-300 mx-2"></div>
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
 
           <button
             onClick={onDownload}
             disabled={downloading}
-            className="px-3 py-1.5 text-sm bg-green-600 text-white hover:bg-green-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-400"
+            className="px-3 py-1.5 text-sm bg-green-600 dark:bg-green-500 text-white hover:bg-green-700 dark:hover:bg-green-600 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors"
             title="Download PDF with all annotations (Ctrl+S or Cmd+S)"
             aria-label="Download PDF with annotations"
           >
@@ -112,7 +112,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
           <button
             onClick={onPrint}
-            className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="px-3 py-1.5 text-sm bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors"
             title="Print PDF with all annotations (Ctrl+P or Cmd+P)"
             aria-label="Print PDF with annotations"
           >
@@ -121,7 +121,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
           <button
             onClick={onSearchToggle}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             title="Search text in PDF (Ctrl+F or Cmd+F)"
             aria-label="Search text in PDF"
           >
@@ -136,8 +136,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
               onClick={() => setCurrentTool(tool.id)}
               className={`px-3 py-1.5 text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 currentTool === tool.id
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                  ? 'bg-blue-600 dark:bg-blue-500 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
               }`}
               title={tool.tooltip}
               aria-label={`${tool.label} tool`}
@@ -150,11 +150,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
         {/* Styling Controls */}
         {(isDrawingTool || isTextTool) && (
           <>
-            <div className="h-6 w-px bg-gray-300 mx-2"></div>
+            <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
             <div className="flex items-center gap-3">
               {/* Color Picker for Pen/Shapes or Text */}
               <div className="flex items-center gap-2">
-                <label className="text-xs text-gray-600">Color:</label>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Color:</label>
                 <input
                   type="color"
                   value={isTextTool ? fontColor : penColor}
@@ -167,7 +167,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               {/* Pen Width Slider (for drawing tools) */}
               {isDrawingTool && (
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-600">Width:</label>
+                  <label className="text-xs text-gray-600 dark:text-gray-400">Width:</label>
                   <input
                     type="range"
                     min="1"
@@ -177,7 +177,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                     className="w-20"
                     title="Adjust line width for pen, shapes, and highlights (1-10px)"
                   />
-                  <span className="text-xs text-gray-600 w-6">{penWidth}</span>
+                  <span className="text-xs text-gray-600 dark:text-gray-400 w-6">{penWidth}</span>
                 </div>
               )}
 
@@ -185,11 +185,11 @@ const Toolbar: React.FC<ToolbarProps> = ({
               {isTextTool && (
                 <>
                   <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-600">Font:</label>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Font:</label>
                     <select
                       value={fontFamily}
                       onChange={(e) => setFontFamily(e.target.value)}
-                      className="px-2 py-1 text-sm border rounded"
+                      className="px-2 py-1 text-sm border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                       title="Choose font family for text annotations"
                     >
                       <option value="Arial">Arial</option>
@@ -202,7 +202,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-600">Size:</label>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Size:</label>
                     <input
                       type="range"
                       min="8"
@@ -212,7 +212,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                       className="w-20"
                       title="Adjust font size for text annotations (8-48px)"
                     />
-                    <span className="text-xs text-gray-600 w-8">{fontSize}</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-400 w-8">{fontSize}</span>
                   </div>
                 </>
               )}
@@ -223,10 +223,10 @@ const Toolbar: React.FC<ToolbarProps> = ({
         {/* Delete Button (when annotations selected) */}
         {selectedAnnotationIds.length > 0 && (
           <>
-            <div className="h-6 w-px bg-gray-300 mx-2"></div>
+            <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
             <button
               onClick={deleteSelectedAnnotations}
-              className="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded focus:outline-none focus:ring-2 focus:ring-red-400"
+              className="px-3 py-1.5 text-sm bg-red-600 dark:bg-red-500 text-white hover:bg-red-700 dark:hover:bg-red-600 rounded focus:outline-none focus:ring-2 focus:ring-red-400 transition-colors"
               title={`Delete selected annotation${selectedAnnotationIds.length > 1 ? 's' : ''} (Delete or Backspace key)`}
             >
               🗑 Delete {selectedAnnotationIds.length > 1 ? `(${selectedAnnotationIds.length})` : ''}
@@ -237,17 +237,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={onZoomOut}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             title="Zoom out (- key)"
           >
             -
           </button>
-          <span className="text-sm text-gray-700 w-16 text-center" title="Current zoom level">
+          <span className="text-sm text-gray-700 dark:text-gray-300 w-16 text-center" title="Current zoom level">
             {Math.round(zoom * 100)}%
           </span>
           <button
             onClick={onZoomIn}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
             title="Zoom in (+ or = key)"
           >
             +
