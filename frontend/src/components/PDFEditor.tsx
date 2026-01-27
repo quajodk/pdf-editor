@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { useEditorStore } from '../store/useEditorStore';
@@ -20,7 +20,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
-  const { currentPage, setCurrentPage, setTotalPages, zoom, setZoom, annotations } = useEditorStore();
+  const { currentPage, setCurrentPage, setTotalPages, zoom, setZoom, annotations, undo, redo } = useEditorStore();
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -224,6 +224,60 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
       setDownloading(false);
     }
   };
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if target is an input element to avoid conflicts
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        return;
+      }
+
+      // Ctrl/Cmd + Z: Undo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+
+      // Ctrl/Cmd + Y OR Ctrl/Cmd + Shift + Z: Redo
+      else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+      }
+
+      // Ctrl/Cmd + S: Save
+      else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        handleDownload();
+      }
+
+      // Arrow keys: Page navigation
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        handlePrevPage();
+      }
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        handleNextPage();
+      }
+
+      // + or =: Zoom in
+      else if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        handleZoomIn();
+      }
+
+      // -: Zoom out
+      else if (e.key === '-') {
+        e.preventDefault();
+        handleZoomOut();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, currentPage, numPages, zoom]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100">

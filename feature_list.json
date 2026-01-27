@@ -412,7 +412,7 @@
         "Verify redo works",
         "Test other shortcuts"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 35,
