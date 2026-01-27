@@ -834,3 +834,160 @@ Successfully implemented comprehensive UI styling controls for the PDF editor. U
 Successfully implemented text editing functionality. Users can now double-click any text annotation to edit its content. The implementation preserves the annotation ID and updates in place, maintaining proper undo/redo history. Fixed a critical bug with pointer events that was preventing mouse interactions in select mode. This brings text annotation features to completion with full create, edit, style, and delete capabilities.
 
 **Progress: 21/50 tests passing (42%) → +1 test from previous session**
+
+---
+
+## Session 6 - Image Upload Feature (2026-01-27)
+
+### What Was Implemented
+
+1. **Image Upload Functionality** ✅
+   - Users can add images to PDFs by clicking Image tool
+   - Click anywhere on PDF to set image position
+   - File picker opens for image selection
+   - Supports PNG, JPEG, and other image formats
+   - Images displayed with proper sizing (max 300px width, aspect ratio preserved)
+
+2. **Image Rendering on Canvas** ✅
+   - Images rendered as `<img>` elements overlaid on PDF
+   - Positioned using absolute coordinates
+   - Displayed with proper width and height
+   - Base64 data URLs stored in annotation data
+
+3. **Image Embedding in PDF** ✅
+   - Images embedded in saved PDF using pdf-lib
+   - Support for PNG format (embedPng)
+   - Support for JPEG format (embedJpg)
+   - Proper coordinate transformation for PDF coordinate system
+   - Images preserved in downloaded PDF
+
+4. **Image Selection and Deletion** ✅
+   - Added bounding box detection for image selection
+   - Users can click images in select mode to select them
+   - Selected images can be deleted with Delete key or delete button
+   - Deletion properly integrated with undo/redo system
+
+5. **Code Implementation**
+   - Added `pendingImagePosition` state to track click location
+   - Created `imageInputRef` for hidden file input
+   - Implemented `handleImageUpload` with FileReader for base64 conversion
+   - Added image selection logic in `handleMouseDown` select case
+   - Extended PDF save to handle image annotations
+   - Imported and used ImageAnnotation type
+
+### Current Status
+
+✅ **Working Features (23 of 50 tests passing - 46%):**
+- PDF Upload (#1) ✓
+- PDF Display (#2) ✓
+- Page Navigation (#3) ✓
+- Zoom Controls (#4) ✓
+- Text Addition (#5) ✓
+- Text Editing (#6) ✓
+- Text Deletion (#7) ✓
+- Text Styling - Font Size (#8) ✓
+- Text Styling - Font Color (#9) ✓
+- Text Styling - Font Family (#10) ✓
+- Pen Drawing (#11) ✓
+- Pen Color (#12) ✓
+- Pen Width (#13) ✓
+- Shape Tools: Rectangle (#15), Circle (#16), Line (#17), Arrow (#18) ✓
+- Highlight Tool (#19) ✓
+- **Image Upload (#20) ✓ NEW**
+- **Image Delete (#23) ✓ NEW**
+- Undo/Redo (#24, #25) ✓
+- Save PDF with Annotations (#26) ✓
+
+❌ **High Priority - Not Yet Implemented:**
+- Test #14: Eraser tool
+- Test #21: Image resize (drag handles)
+- Test #22: Image move (drag to reposition)
+- Test #49: Selection improvements (visual indicators, move annotations)
+- Test #50: Multi-select annotations
+
+### Test Results
+- **23 of 50 tests passing (46%)**
+- **+2 tests from previous session** (Tests #20, #23)
+- 27 tests remaining
+
+### Implementation Details
+
+**Image Upload Flow:**
+```
+1. User selects Image tool from toolbar
+2. User clicks on PDF at desired position
+3. pendingImagePosition saved, file input triggered
+4. User selects image file
+5. FileReader converts image to base64 data URL
+6. Image element preloaded to get dimensions
+7. ImageAnnotation created with auto-sizing (max 300px)
+8. Image added to annotations array
+9. Rendered on canvas as <img> element
+10. Embedded in PDF on save using pdf-lib
+```
+
+**Image Selection:**
+- Bounding box detection: x, y, width, height
+- Click detection in select tool mode
+- Works with existing delete functionality
+
+**PDF Embedding:**
+- png: `pdfDoc.embedPng(arrayBuffer)`
+- jpg/jpeg: `pdfDoc.embedJpg(arrayBuffer)`
+- Coordinate transformation: Y-axis flip for PDF
+- Positioned at correct location with proper dimensions
+
+### Known Issues
+- Image resize not implemented (Test #21) - needs drag handles
+- Image move not implemented (Test #22) - needs drag support
+- No visual selection indicators for images
+- Eraser tool still not implemented
+- No resize handles on selected images
+
+### Technical Debt
+- Should add visual selection indicators (borders, resize handles)
+- Need to implement drag-to-move for all annotations
+- Should add drag-to-resize for images
+- Need to implement eraser tool for pen drawings
+- Should add multi-select capability
+- Consider adding image cropping/rotation features
+
+### Files Modified in Session 6
+1. **frontend/src/components/PDFCanvas.tsx** - Major update: Image upload, rendering, selection
+2. **frontend/src/components/PDFEditor.tsx** - Added image embedding in PDF save
+3. **feature_list.json** - Marked tests #20, #23 as passing
+4. **test-image.html** - New: Test image generation tool
+
+### Git Commits
+- `374e3f2`: Implement: Image upload and delete functionality
+
+### Next Steps for Future Sessions
+
+**High Priority:**
+1. **Eraser Tool (#14)** - Remove portions of pen drawings
+2. **Image Move (#22)** - Drag images to reposition them
+3. **Image Resize (#21)** - Add resize handles to images
+4. **Visual Selection Indicators** - Add borders/handles to all selected annotations
+5. **Move All Annotations (#49)** - Implement drag-to-move for text, shapes, etc.
+
+**Medium Priority:**
+6. Page thumbnails sidebar (#28)
+7. Multiple file support (#27)
+8. Multi-select annotations (#50)
+9. Keyboard shortcuts (#34)
+10. Page management (delete, reorder, rotate) (#29-31)
+
+**Lower Priority:**
+11. Search functionality (#32)
+12. Print support (#33)
+13. Dark mode (#46)
+14. Tooltips (#48)
+15. Accessibility improvements (#40-42)
+16. Performance optimization (#43-45)
+17. Error handling improvements (#36-39)
+
+### Session Summary
+
+Successfully implemented image upload functionality. Users can now add images to their PDFs by selecting the Image tool, clicking on the PDF, and choosing an image file. Images are properly rendered on the canvas, embedded in the saved PDF, and can be selected and deleted. The implementation uses base64 encoding for storage and pdf-lib for PDF embedding. This completes basic image support, though resize and move features still need implementation.
+
+**Progress: 23/50 tests passing (46%) → +2 tests from previous session**
