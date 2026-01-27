@@ -373,7 +373,7 @@
         "Click rotate multiple times",
         "Verify full rotation cycle"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 32,

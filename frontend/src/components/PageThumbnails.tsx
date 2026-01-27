@@ -7,6 +7,7 @@ interface PageThumbnailsProps {
   currentPage: number;
   onPageClick: (pageNumber: number) => void;
   onPageDelete: (pageNumber: number) => void;
+  onPageRotate: (pageNumber: number) => void;
   isOpen: boolean;
   onToggle: () => void;
 }
@@ -17,6 +18,7 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
   currentPage,
   onPageClick,
   onPageDelete,
+  onPageRotate,
   isOpen,
   onToggle,
 }) => {
@@ -73,6 +75,17 @@ const PageThumbnails: React.FC<PageThumbnailsProps> = ({
                         </div>
                       </div>
                     </div>
+                    {/* Rotate Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPageRotate(pageNumber);
+                      }}
+                      className="absolute top-1 left-1 bg-blue-600 hover:bg-blue-700 text-white rounded p-1 text-xs font-bold shadow-md transition-colors"
+                      title={`Rotate page ${pageNumber} 90° clockwise`}
+                    >
+                      ↻
+                    </button>
                     {/* Delete Button */}
                     {numPages > 1 && (
                       <button

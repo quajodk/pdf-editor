@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, degrees } from 'pdf-lib';
 import { useEditorStore } from '../store/useEditorStore';
 import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation } from '../types';
 import Toolbar from './Toolbar';
@@ -288,6 +288,44 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
     }
   };
 
+  const handlePageRotate = async (pageNumber: number) => {
+    setLoading(true);
+    try {
+      // Load the PDF
+      const arrayBuffer = await currentFile.arrayBuffer();
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pages = pdfDoc.getPages();
+
+      // Get the page (pageNumber is 1-indexed, but pdf-lib uses 0-indexed)
+      const page = pages[pageNumber - 1];
+
+      // Rotate the page 90 degrees clockwise
+      const currentRotation = page.getRotation().angle;
+      const newRotation = (currentRotation + 90) % 360;
+      page.setRotation(degrees(newRotation));
+
+      // Save the modified PDF
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const newFile = new File([blob], currentFile.name, { type: 'application/pdf' });
+
+      // Update state to force re-render
+      setCurrentFile(newFile);
+
+      // Force a re-render by toggling a state variable
+      setLoading(false);
+
+      // Small timeout to ensure the Document component re-renders
+      setTimeout(() => {
+        setNumPages(numPages); // This triggers re-render
+      }, 100);
+    } catch (error) {
+      console.error('Error rotating page:', error);
+      alert('Failed to rotate page. Please try again.');
+      setLoading(false);
+    }
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -362,6 +400,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         currentPage={currentPage}
         onPageClick={setCurrentPage}
         onPageDelete={handlePageDelete}
+        onPageRotate={handlePageRotate}
         isOpen={thumbnailsOpen}
         onToggle={() => setThumbnailsOpen(!thumbnailsOpen)}
       />
