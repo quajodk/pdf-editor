@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { useEditorStore } from '../store/useEditorStore';
 import Toolbar from './Toolbar';
@@ -52,12 +52,26 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
     setZoom(zoom - 0.1);
   };
 
+  const handleDownload = () => {
+    // For now, download the original PDF
+    // TODO: Render annotations onto PDF before download
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.name.replace('.pdf', '_edited.pdf');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gray-100">
       <Toolbar
         onClose={onClose}
         onZoomIn={handleZoomIn}
         onZoomOut={handleZoomOut}
+        onDownload={handleDownload}
         zoom={zoom}
         currentPage={currentPage}
         totalPages={numPages}

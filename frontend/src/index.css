@@ -26,6 +26,8 @@ code {
 .bg-white { background-color: #ffffff; }
 .bg-blue-600 { background-color: #2563eb; }
 .bg-blue-700 { background-color: #1d4ed8; }
+.bg-green-600 { background-color: #16a34a; }
+.bg-green-700 { background-color: #15803d; }
 .text-white { color: #ffffff; }
 .text-gray-600 { color: #4b5563; }
 .text-gray-700 { color: #374151; }
@@ -107,6 +109,7 @@ code {
 .hover\:bg-blue-700:hover { background-color: #1d4ed8; }
 .hover\:bg-gray-200:hover { background-color: #e5e7eb; }
 .hover\:bg-gray-300:hover { background-color: #d1d5db; }
+.hover\:bg-green-700:hover { background-color: #15803d; }
 .hover\:border-blue-500:hover { border-color: #3b82f6; }
 .focus\:outline-none:focus { outline: none; }
 .focus\:ring-2:focus { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5); }

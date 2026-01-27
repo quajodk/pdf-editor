@@ -6,6 +6,7 @@ interface ToolbarProps {
   onClose: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  onDownload: () => void;
   zoom: number;
   currentPage: number;
   totalPages: number;
@@ -16,6 +17,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onClose,
   onZoomIn,
   onZoomOut,
+  onDownload,
   zoom,
   currentPage,
   totalPages,
@@ -68,6 +70,16 @@ const Toolbar: React.FC<ToolbarProps> = ({
             title="Redo (Ctrl+Y)"
           >
             ↷ Redo
+          </button>
+
+          <div className="h-6 w-px bg-gray-300 mx-2"></div>
+
+          <button
+            onClick={onDownload}
+            className="px-3 py-1.5 text-sm bg-green-600 text-white hover:bg-green-700 rounded"
+            title="Download PDF (Ctrl+S)"
+          >
+            ⬇ Save
           </button>
         </div>
 
