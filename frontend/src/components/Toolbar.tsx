@@ -8,6 +8,7 @@ interface ToolbarProps {
   onZoomOut: () => void;
   onDownload: () => void;
   onPrint: () => void;
+  onSearchToggle: () => void;
   downloading?: boolean;
   zoom: number;
   currentPage: number;
@@ -21,6 +22,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onZoomOut,
   onDownload,
   onPrint,
+  onSearchToggle,
   downloading = false,
   zoom,
   currentPage,
@@ -128,6 +130,15 @@ const Toolbar: React.FC<ToolbarProps> = ({
             aria-label="Print PDF with annotations"
           >
             🖨 Print
+          </button>
+
+          <button
+            onClick={onSearchToggle}
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+            title="Search text in PDF (Ctrl+F or Cmd+F)"
+            aria-label="Search text in PDF"
+          >
+            🔍 Search
           </button>
         </div>
 

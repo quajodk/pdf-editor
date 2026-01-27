@@ -79,3 +79,9 @@ export interface PDFDocument {
   numPages: number;
   annotations: Annotation[];
 }
+
+export interface SearchResult {
+  pageNumber: number;
+  text: string;
+  index: number;
+}

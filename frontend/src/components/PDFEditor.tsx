@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument, rgb, degrees } from 'pdf-lib';
 import { useEditorStore } from '../store/useEditorStore';
-import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation } from '../types';
+import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation, SearchResult } from '../types';
 import Toolbar from './Toolbar';
 import PDFCanvas from './PDFCanvas';
 import PageThumbnails from './PageThumbnails';
+import SearchBar from './SearchBar';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -23,7 +24,21 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
   const [downloading, setDownloading] = useState(false);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(false);
   const [currentFile, setCurrentFile] = useState<File>(file);
-  const { currentPage, setCurrentPage, setTotalPages, zoom, setZoom, annotations, undo, redo } = useEditorStore();
+  const {
+    currentPage,
+    setCurrentPage,
+    setTotalPages,
+    zoom,
+    setZoom,
+    annotations,
+    undo,
+    redo,
+    isSearchOpen,
+    setIsSearchOpen,
+    searchResults,
+    currentSearchIndex,
+    setSearchResults,
+  } = useEditorStore();
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -344,85 +359,93 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
           const { height: pageHeight } = page.getSize();
 
           if (annotation.type === 'text') {
-            const textAnnotation = annotation as TextAnnotation;
-            const colorRgb = hexToRgb(textAnnotation.color);
-            page.drawText(textAnnotation.text, {
-              x: textAnnotation.x,
-              y: pageHeight - textAnnotation.y - textAnnotation.fontSize,
-              size: textAnnotation.fontSize,
+            const textAnn = annotation as TextAnnotation;
+            const colorRgb = hexToRgb(textAnn.data.color);
+            page.drawText(textAnn.data.text, {
+              x: textAnn.x,
+              y: pageHeight - textAnn.y - textAnn.data.fontSize,
+              size: textAnn.data.fontSize,
               color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
             });
           } else if (annotation.type === 'drawing') {
-            const drawing = annotation as DrawingAnnotation;
-            const colorRgb = hexToRgb(drawing.color);
-            for (let i = 0; i < drawing.points.length - 1; i++) {
-              const start = drawing.points[i];
-              const end = drawing.points[i + 1];
-              page.drawLine({
-                start: { x: start.x, y: pageHeight - start.y },
-                end: { x: end.x, y: pageHeight - end.y },
-                thickness: drawing.width,
-                color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
-              });
+            const drawingAnn = annotation as DrawingAnnotation;
+            const colorRgb = hexToRgb(drawingAnn.data.color);
+            for (const path of drawingAnn.data.paths) {
+              for (let i = 0; i < path.length - 1; i++) {
+                const point1 = path[i];
+                const point2 = path[i + 1];
+                page.drawLine({
+                  start: { x: point1.x, y: pageHeight - point1.y },
+                  end: { x: point2.x, y: pageHeight - point2.y },
+                  thickness: drawingAnn.data.width,
+                  color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+                });
+              }
             }
           } else if (annotation.type === 'shape') {
-            const shape = annotation as ShapeAnnotation;
-            const colorRgb = hexToRgb(shape.color);
+            const shapeAnn = annotation as ShapeAnnotation;
+            const colorRgb = hexToRgb(shapeAnn.data.strokeColor);
 
-            if (shape.shapeType === 'rectangle') {
+            if (shapeAnn.data.shapeType === 'rectangle') {
               page.drawRectangle({
-                x: shape.x,
-                y: pageHeight - shape.y - shape.height,
-                width: shape.width,
-                height: shape.height,
+                x: shapeAnn.x,
+                y: pageHeight - shapeAnn.y - (shapeAnn.height || 0),
+                width: shapeAnn.width || 0,
+                height: shapeAnn.height || 0,
                 borderColor: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
-                borderWidth: shape.strokeWidth,
+                borderWidth: shapeAnn.data.strokeWidth,
               });
-            } else if (shape.shapeType === 'circle') {
-              const radiusX = shape.width / 2;
-              const radiusY = shape.height / 2;
+            } else if (shapeAnn.data.shapeType === 'circle') {
+              const centerX = shapeAnn.x + (shapeAnn.width || 0) / 2;
+              const centerY = pageHeight - shapeAnn.y - (shapeAnn.height || 0) / 2;
+              const radiusX = (shapeAnn.width || 0) / 2;
+              const radiusY = (shapeAnn.height || 0) / 2;
               page.drawEllipse({
-                x: shape.x + radiusX,
-                y: pageHeight - shape.y - radiusY,
+                x: centerX,
+                y: centerY,
                 xScale: radiusX,
                 yScale: radiusY,
                 borderColor: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
-                borderWidth: shape.strokeWidth,
+                borderWidth: shapeAnn.data.strokeWidth,
               });
-            } else if (shape.shapeType === 'line' || shape.shapeType === 'arrow') {
+            } else if (shapeAnn.data.shapeType === 'line' || shapeAnn.data.shapeType === 'arrow') {
               page.drawLine({
-                start: { x: shape.x, y: pageHeight - shape.y },
-                end: { x: shape.x + shape.width, y: pageHeight - shape.y - shape.height },
-                thickness: shape.strokeWidth,
+                start: { x: shapeAnn.x, y: pageHeight - shapeAnn.y },
+                end: { x: shapeAnn.data.endX || shapeAnn.x, y: pageHeight - (shapeAnn.data.endY || shapeAnn.y) },
+                thickness: shapeAnn.data.strokeWidth,
                 color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
               });
             }
           } else if (annotation.type === 'highlight') {
-            const highlight = annotation as HighlightAnnotation;
-            const colorRgb = hexToRgb(highlight.color);
+            const highlightAnn = annotation as HighlightAnnotation;
+            const colorRgb = hexToRgb(highlightAnn.data.color);
             page.drawRectangle({
-              x: highlight.x,
-              y: pageHeight - highlight.y - highlight.height,
-              width: highlight.width,
-              height: highlight.height,
+              x: highlightAnn.x,
+              y: pageHeight - highlightAnn.y - (highlightAnn.height || 0),
+              width: highlightAnn.width || 0,
+              height: highlightAnn.height || 0,
               color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
-              opacity: 0.3,
+              opacity: highlightAnn.data.opacity,
             });
           } else if (annotation.type === 'image') {
-            const imageAnnotation = annotation as ImageAnnotation;
-            const imageBytes = await fetch(imageAnnotation.imageData).then(res => res.arrayBuffer());
-            let embeddedImage;
-            if (imageAnnotation.imageData.startsWith('data:image/png')) {
-              embeddedImage = await pdfDoc.embedPng(imageBytes);
-            } else {
-              embeddedImage = await pdfDoc.embedJpg(imageBytes);
+            const imageAnn = annotation as ImageAnnotation;
+            try {
+              const imageBytes = await fetch(imageAnn.data.src).then(res => res.arrayBuffer());
+              let embeddedImage;
+              if (imageAnn.data.src.startsWith('data:image/png')) {
+                embeddedImage = await pdfDoc.embedPng(imageBytes);
+              } else {
+                embeddedImage = await pdfDoc.embedJpg(imageBytes);
+              }
+              page.drawImage(embeddedImage, {
+                x: imageAnn.x,
+                y: pageHeight - imageAnn.y - (imageAnn.height || 100),
+                width: imageAnn.width || 100,
+                height: imageAnn.height || 100,
+              });
+            } catch (error) {
+              console.error('Error drawing image annotation in print:', error);
             }
-            page.drawImage(embeddedImage, {
-              x: imageAnnotation.x,
-              y: pageHeight - imageAnnotation.y - imageAnnotation.height,
-              width: imageAnnotation.width,
-              height: imageAnnotation.height,
-            });
           }
         }
 
@@ -526,6 +549,65 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
     }
   };
 
+  const handleSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const results: SearchResult[] = [];
+      const loadingTask = pdfjs.getDocument(URL.createObjectURL(currentFile));
+      const pdf = await loadingTask.promise;
+
+      // Search through all pages
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+
+        // Combine all text items into a single string
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+
+        // Find all occurrences of the search query (case-insensitive)
+        const lowerQuery = query.toLowerCase();
+        const lowerText = pageText.toLowerCase();
+        let index = 0;
+        let position = lowerText.indexOf(lowerQuery, index);
+
+        while (position !== -1) {
+          results.push({
+            pageNumber: pageNum,
+            text: pageText.substring(Math.max(0, position - 20), Math.min(pageText.length, position + query.length + 20)),
+            index: results.length,
+          });
+          index = position + 1;
+          position = lowerText.indexOf(lowerQuery, index);
+        }
+      }
+
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Error searching PDF:', error);
+      setSearchResults([]);
+    }
+  }, [currentFile, numPages, setSearchResults]);
+
+  const handleSearchToggle = () => {
+    setIsSearchOpen(!isSearchOpen);
+  };
+
+  // Navigate to search result when currentSearchIndex changes
+  useEffect(() => {
+    if (searchResults.length > 0 && currentSearchIndex >= 0) {
+      const result = searchResults[currentSearchIndex];
+      if (result && result.pageNumber !== currentPage) {
+        setCurrentPage(result.pageNumber);
+      }
+    }
+  }, [currentSearchIndex, searchResults, currentPage, setCurrentPage]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -557,6 +639,12 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
       else if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
         e.preventDefault();
         handlePrint();
+      }
+
+      // Ctrl/Cmd + F: Search
+      else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        handleSearchToggle();
       }
 
       // Arrow keys: Page navigation
@@ -594,12 +682,15 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         onZoomOut={handleZoomOut}
         onDownload={handleDownload}
         onPrint={handlePrint}
+        onSearchToggle={handleSearchToggle}
         downloading={downloading}
         zoom={zoom}
         currentPage={currentPage}
         totalPages={numPages}
         onPageChange={setCurrentPage}
       />
+
+      <SearchBar onSearch={handleSearch} />
 
       <PageThumbnails
         file={currentFile}

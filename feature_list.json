@@ -386,7 +386,7 @@
         "Verify matching text is highlighted",
         "Navigate through results"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 33,

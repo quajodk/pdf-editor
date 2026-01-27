@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Annotation, Tool } from '../types';
+import { Annotation, Tool, SearchResult } from '../types';
 
 interface EditorState {
   currentTool: Tool;
@@ -16,6 +16,10 @@ interface EditorState {
   fontSize: number;
   fontFamily: string;
   fontColor: string;
+  searchQuery: string;
+  searchResults: SearchResult[];
+  currentSearchIndex: number;
+  isSearchOpen: boolean;
 
   // Actions
   setCurrentTool: (tool: Tool) => void;
@@ -37,6 +41,13 @@ interface EditorState {
   setFontSize: (size: number) => void;
   setFontFamily: (family: string) => void;
   setFontColor: (color: string) => void;
+  setSearchQuery: (query: string) => void;
+  setSearchResults: (results: SearchResult[]) => void;
+  setCurrentSearchIndex: (index: number) => void;
+  setIsSearchOpen: (isOpen: boolean) => void;
+  nextSearchResult: () => void;
+  previousSearchResult: () => void;
+  clearSearch: () => void;
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -54,6 +65,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   fontSize: 16,
   fontFamily: 'Arial',
   fontColor: '#000000',
+  searchQuery: '',
+  searchResults: [],
+  currentSearchIndex: -1,
+  isSearchOpen: false,
 
   setCurrentTool: (tool) => set({ currentTool: tool }),
   setCurrentPage: (page) => set({ currentPage: page }),
@@ -176,4 +191,34 @@ export const useEditorStore = create<EditorState>((set) => ({
   setFontSize: (size) => set({ fontSize: size }),
   setFontFamily: (family) => set({ fontFamily: family }),
   setFontColor: (color) => set({ fontColor: color }),
+
+  setSearchQuery: (query) => set({ searchQuery: query }),
+  setSearchResults: (results) => set({
+    searchResults: results,
+    currentSearchIndex: results.length > 0 ? 0 : -1
+  }),
+  setCurrentSearchIndex: (index) => set({ currentSearchIndex: index }),
+  setIsSearchOpen: (isOpen) => set({ isSearchOpen: isOpen }),
+
+  nextSearchResult: () =>
+    set((state) => {
+      if (state.searchResults.length === 0) return state;
+      const newIndex = (state.currentSearchIndex + 1) % state.searchResults.length;
+      return { currentSearchIndex: newIndex };
+    }),
+
+  previousSearchResult: () =>
+    set((state) => {
+      if (state.searchResults.length === 0) return state;
+      const newIndex = state.currentSearchIndex - 1 < 0
+        ? state.searchResults.length - 1
+        : state.currentSearchIndex - 1;
+      return { currentSearchIndex: newIndex };
+    }),
+
+  clearSearch: () => set({
+    searchQuery: '',
+    searchResults: [],
+    currentSearchIndex: -1
+  }),
 }));
