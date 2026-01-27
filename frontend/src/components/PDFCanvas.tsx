@@ -38,6 +38,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   const [isResizing, setIsResizing] = useState(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
   const [resizeHandle, setResizeHandle] = useState<'se' | 'sw' | 'ne' | 'nw' | null>(null);
+  const [eraserPath, setEraserPath] = useState<{ x: number; y: number }[]>([]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -54,6 +55,9 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     } else if (currentTool === 'pen') {
       setIsDrawing(true);
       setCurrentPath([{ x, y }]);
+    } else if (currentTool === 'eraser') {
+      setIsDrawing(true);
+      setEraserPath([{ x, y }]);
     } else if (['rectangle', 'circle', 'line', 'arrow', 'highlight'].includes(currentTool)) {
       setIsDrawing(true);
       setShapeStart({ x, y });
@@ -231,6 +235,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
     if (currentTool === 'pen') {
       setCurrentPath((prev) => [...prev, { x, y }]);
+    } else if (currentTool === 'eraser') {
+      setEraserPath((prev) => [...prev, { x, y }]);
     } else if (['rectangle', 'circle', 'line', 'arrow', 'highlight'].includes(currentTool)) {
       setShapeEnd({ x, y });
     }
@@ -268,6 +274,28 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       };
       addAnnotation(annotation);
       setCurrentPath([]);
+    } else if (currentTool === 'eraser' && eraserPath.length > 0) {
+      // Find and delete drawings that intersect with eraser path
+      const eraserThreshold = 10; // Distance threshold for erasing
+      pageAnnotations.forEach((ann) => {
+        if (ann.type === 'drawing') {
+          // Check if any point in the drawing paths intersects with eraser path
+          const shouldErase = ann.data.paths.some((path: any) =>
+            path.some((point: any) =>
+              eraserPath.some((eraserPoint) =>
+                Math.sqrt(
+                  Math.pow(point.x - eraserPoint.x, 2) +
+                  Math.pow(point.y - eraserPoint.y, 2)
+                ) <= eraserThreshold
+              )
+            )
+          );
+          if (shouldErase) {
+            deleteAnnotation(ann.id);
+          }
+        }
+      });
+      setEraserPath([]);
     } else if (['rectangle', 'circle', 'line', 'arrow'].includes(currentTool) && shapeStart && shapeEnd) {
       const annotation: ShapeAnnotation = {
         id: Date.now().toString(),
@@ -422,6 +450,19 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               fill="none"
               strokeLinecap="round"
               strokeLinejoin="round"
+            />
+          )}
+
+          {/* Render eraser path (visual feedback) */}
+          {eraserPath.length > 0 && (
+            <path
+              d={`M ${eraserPath.map((p) => `${p.x},${p.y}`).join(' L ')}`}
+              stroke="#FF0000"
+              strokeWidth={15}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.3}
             />
           )}
 
