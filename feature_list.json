@@ -336,7 +336,7 @@
         "Click thumbnail",
         "Verify page navigation works"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 29,

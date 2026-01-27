@@ -5,11 +5,12 @@ import { useEditorStore } from '../store/useEditorStore';
 import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation } from '../types';
 import Toolbar from './Toolbar';
 import PDFCanvas from './PDFCanvas';
+import PageThumbnails from './PageThumbnails';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
-// Set up PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Set up PDF.js worker - use jsdelivr which supports newer versions
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PDFEditorProps {
   file: File;
@@ -20,6 +21,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
   const [numPages, setNumPages] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [thumbnailsOpen, setThumbnailsOpen] = useState(false);
   const { currentPage, setCurrentPage, setTotalPages, zoom, setZoom, annotations, undo, redo } = useEditorStore();
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -291,6 +293,15 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         currentPage={currentPage}
         totalPages={numPages}
         onPageChange={setCurrentPage}
+      />
+
+      <PageThumbnails
+        file={file}
+        numPages={numPages}
+        currentPage={currentPage}
+        onPageClick={setCurrentPage}
+        isOpen={thumbnailsOpen}
+        onToggle={() => setThumbnailsOpen(!thumbnailsOpen)}
       />
 
       <div className="flex-1 overflow-auto bg-gray-200 p-4">
