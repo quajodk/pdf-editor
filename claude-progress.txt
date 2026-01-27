@@ -2179,3 +2179,207 @@ The project has reached **64% completion (32/50 tests passing)**. The core editi
 
 ---
 
+## Session 13 - Multi-Select Annotations Feature (2026-01-27)
+
+### What Was Implemented
+
+1. **Multi-Select Annotations System** ✅
+   - Extended state management to support multiple selected annotations
+   - Added `selectedAnnotationIds` array to track all selected items
+   - Implemented Shift+click functionality to add/remove annotations from selection
+   - Visual indicators now show for ALL selected annotations, not just one
+   - Batch operations work on all selected items simultaneously
+
+2. **State Management Updates** ✅
+   - Added `selectedAnnotationIds: string[]` to EditorState
+   - Kept `selectedAnnotationId` for backward compatibility
+   - New functions:
+     - `setSelectedAnnotations(ids)`: Set multiple selections at once
+     - `toggleAnnotationSelection(id)`: Add/remove from selection with Shift+click
+     - `deleteSelectedAnnotations()`: Delete all selected annotations at once
+   - Automatic sync between single and multi-select states
+
+3. **PDFCanvas Component Updates** ✅
+   - Updated selection logic in `handleMouseDown`:
+     - Normal click: Select single annotation (clear others)
+     - Shift+click: Toggle annotation in/out of selection
+     - Click empty space (no Shift): Clear all selections
+   - Changed all `isSelected` checks from single ID to array includes:
+     - Text annotations: `selectedAnnotationIds.includes(annotation.id)`
+     - Images: `selectedAnnotationIds.includes(annotation.id)`
+     - Shapes: `selectedAnnotationIds.includes(annotation.id)`
+     - Highlights: `selectedAnnotationIds.includes(annotation.id)`
+   - Updated keyboard Delete handler to use `deleteSelectedAnnotations()`
+
+4. **Toolbar Component Updates** ✅
+   - Delete button now shows count when multiple items selected
+   - Display format: "🗑 Delete (3)" when 3 items selected
+   - Button text: "🗑 Delete" when 1 item selected
+   - Uses `deleteSelectedAnnotations()` for batch deletion
+   - Cleaned up unused variables (selectedAnnotationId, deleteAnnotation)
+
+5. **Browser Testing** ✅
+   - Created test-multi-select.js automated test script
+   - Test workflow:
+     1. Upload PDF
+     2. Add 2 text annotations
+     3. Add 1 rectangle
+     4. Switch to Select tool
+     5. Click first annotation (single select)
+     6. Shift+click second annotation (multi-select)
+     7. Shift+click rectangle (3 items selected)
+     8. Verify delete button shows count
+     9. Delete all selected annotations
+     10. Verify all annotations removed
+   - All tests passed successfully
+   - 12 screenshots captured documenting the process
+   - No console errors detected
+
+### Current Status
+
+✅ **Working Features (33 of 50 tests passing - 66%):**
+- PDF Upload (#1) ✓
+- PDF Display (#2) ✓
+- Page Navigation (#3) ✓
+- Zoom Controls (#4) ✓
+- Text Addition (#5) ✓
+- Text Editing (#6) ✓
+- Text Deletion (#7) ✓
+- Text Styling - Font Size (#8) ✓
+- Text Styling - Font Color (#9) ✓
+- Text Styling - Font Family (#10) ✓
+- Pen Drawing (#11) ✓
+- Pen Color (#12) ✓
+- Pen Width (#13) ✓
+- Eraser Tool (#14) ✓
+- Shape Tools: Rectangle (#15), Circle (#16), Line (#17), Arrow (#18) ✓
+- Highlight Tool (#19) ✓
+- Image Upload (#20) ✓
+- Image Resize (#21) ✓
+- Image Move (#22) ✓
+- Image Delete (#23) ✓
+- Undo/Redo (#24, #25) ✓
+- Save PDF with Annotations (#26) ✓
+- Page Thumbnails (#28) ✓
+- Page Deletion (#29) ✓
+- Page Reordering (#30) ✓
+- Page Rotation (#31) ✓
+- Keyboard Shortcuts (#34) ✓
+- Selection Tool (#49) ✓
+- **Multi-Select (#50) ✓ NEW**
+
+### Test Results
+- **33 of 50 tests passing (66%)**
+- **+1 test from previous session** (Test #50)
+- **Major milestone: 2/3 complete!**
+- 17 tests remaining
+
+### Implementation Details
+
+**Multi-Select Workflow:**
+```
+1. User selects first annotation (normal click)
+   - Sets selectedAnnotationIds = [id1]
+   - Shows blue border on annotation
+
+2. User Shift+clicks second annotation
+   - toggleAnnotationSelection(id2) called
+   - Sets selectedAnnotationIds = [id1, id2]
+   - Both annotations show blue borders
+
+3. User Shift+clicks third annotation
+   - toggleAnnotationSelection(id3) called
+   - Sets selectedAnnotationIds = [id1, id2, id3]
+   - All three annotations show blue borders
+   - Delete button shows "Delete (3)"
+
+4. User clicks Delete button or presses Delete key
+   - deleteSelectedAnnotations() called
+   - All three annotations removed from array
+   - History updated with single undo entry
+   - selectedAnnotationIds cleared = []
+```
+
+**State Synchronization:**
+```typescript
+// When selecting single annotation
+setSelectedAnnotation: (id) => set({
+  selectedAnnotationId: id,
+  selectedAnnotationIds: id ? [id] : []
+})
+
+// When selecting multiple annotations
+setSelectedAnnotations: (ids) => set({
+  selectedAnnotationIds: ids,
+  selectedAnnotationId: ids.length === 1 ? ids[0] : null
+})
+```
+
+**Selection Toggle Logic:**
+```typescript
+toggleAnnotationSelection: (id) => {
+  const isSelected = selectedAnnotationIds.includes(id);
+  const newIds = isSelected
+    ? selectedAnnotationIds.filter(selId => selId !== id)  // Remove if already selected
+    : [...selectedAnnotationIds, id];                       // Add if not selected
+  return {
+    selectedAnnotationIds: newIds,
+    selectedAnnotationId: newIds.length === 1 ? newIds[0] : null
+  };
+}
+```
+
+### Known Issues
+- None identified with multi-select feature
+- 17 tests still need implementation
+
+### Files Modified/Created in Session 13
+1. **frontend/src/store/useEditorStore.ts** - Added multi-select state and functions
+2. **frontend/src/components/PDFCanvas.tsx** - Updated selection logic and visual indicators
+3. **frontend/src/components/Toolbar.tsx** - Updated delete button to show count
+4. **feature_list.json** - Marked test #50 as passing
+5. **test-multi-select.js** - New: Browser automation test
+6. **screenshots/multiselect-*.png** - 12 screenshots documenting multi-select
+
+### Git Commits
+- (Pending) Implement: Multi-select annotations with Shift+click
+
+### Next Steps for Future Sessions
+
+**High Priority - Remaining Features:**
+1. **Tooltips (#48)** - Add tooltips to all tools for better UX
+2. **Search Text (#32)** - Find text within PDF
+3. **Print Support (#33)** - Print PDF with annotations
+4. **Multiple File Support (#27)** - Work with multiple PDFs simultaneously
+
+**Medium Priority - Polish:**
+5. Toolbar organization (#47) - Review and improve layout
+6. Dark mode (#46) - Implement dark theme
+7. Responsive design (#35) - Mobile and tablet optimization
+
+**Lower Priority - Quality:**
+8. Error handling improvements (#36-38) - Invalid files, large files, corrupted PDFs
+9. Loading states (#39) - Better loading indicators
+10. Accessibility improvements (#40-42) - Keyboard nav, screen reader, color contrast
+11. Performance optimization (#43-45) - Rendering speed, smooth scrolling, memory management
+
+### Session Summary
+
+Successfully implemented comprehensive multi-select functionality for annotations. Users can now:
+- Select multiple annotations using Shift+click
+- See visual indicators on all selected items simultaneously
+- Delete multiple annotations at once with a single operation
+- View count of selected items in the delete button
+
+This implementation provides significant workflow improvements for users managing multiple annotations. The feature integrates seamlessly with existing functionality:
+- Works with all annotation types (text, shapes, images, highlights, drawings)
+- Maintains undo/redo history for batch operations
+- Keyboard shortcuts (Delete key) work with multi-select
+- Visual feedback is consistent and clear
+
+The project has reached **66% completion (33/50 tests passing)**, crossing the two-thirds milestone. Core editing, page management, and advanced selection features are all complete. Remaining work focuses on additional features (search, print, tooltips), UI polish (dark mode, responsive design), and quality improvements (accessibility, performance, error handling).
+
+**Progress: 33/50 tests passing (66%) → +1 test from previous session**
+
+---
+

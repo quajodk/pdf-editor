@@ -42,8 +42,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
     setFontSize,
     setFontFamily,
     setFontColor,
-    selectedAnnotationId,
-    deleteAnnotation,
+    selectedAnnotationIds,
+    deleteSelectedAnnotations,
   } = useEditorStore();
 
   const tools: { id: Tool; label: string; icon: string }[] = [
@@ -205,16 +205,16 @@ const Toolbar: React.FC<ToolbarProps> = ({
           </>
         )}
 
-        {/* Delete Button (when annotation selected) */}
-        {selectedAnnotationId && (
+        {/* Delete Button (when annotations selected) */}
+        {selectedAnnotationIds.length > 0 && (
           <>
             <div className="h-6 w-px bg-gray-300 mx-2"></div>
             <button
-              onClick={() => deleteAnnotation(selectedAnnotationId)}
+              onClick={deleteSelectedAnnotations}
               className="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded"
               title="Delete Selected (Delete key)"
             >
-              🗑 Delete
+              🗑 Delete {selectedAnnotationIds.length > 1 ? `(${selectedAnnotationIds.length})` : ''}
             </button>
           </>
         )}

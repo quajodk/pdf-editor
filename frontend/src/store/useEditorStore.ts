@@ -7,7 +7,8 @@ interface EditorState {
   totalPages: number;
   zoom: number;
   annotations: Annotation[];
-  selectedAnnotationId: string | null;
+  selectedAnnotationId: string | null; // Keep for backward compatibility
+  selectedAnnotationIds: string[]; // New: multi-select support
   history: Annotation[][];
   historyIndex: number;
   penColor: string;
@@ -25,6 +26,9 @@ interface EditorState {
   updateAnnotation: (id: string, updates: Partial<Annotation>) => void;
   deleteAnnotation: (id: string) => void;
   setSelectedAnnotation: (id: string | null) => void;
+  setSelectedAnnotations: (ids: string[]) => void; // New: set multiple selections
+  toggleAnnotationSelection: (id: string) => void; // New: toggle selection (for Shift+click)
+  deleteSelectedAnnotations: () => void; // New: delete all selected
   undo: () => void;
   redo: () => void;
   clearAnnotations: () => void;
@@ -42,6 +46,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   zoom: 1,
   annotations: [],
   selectedAnnotationId: null,
+  selectedAnnotationIds: [],
   history: [[]],
   historyIndex: 0,
   penColor: '#000000',
@@ -91,10 +96,48 @@ export const useEditorStore = create<EditorState>((set) => ({
         history: newHistory,
         historyIndex: newHistory.length - 1,
         selectedAnnotationId: state.selectedAnnotationId === id ? null : state.selectedAnnotationId,
+        selectedAnnotationIds: state.selectedAnnotationIds.filter(selId => selId !== id),
       };
     }),
 
-  setSelectedAnnotation: (id) => set({ selectedAnnotationId: id }),
+  setSelectedAnnotation: (id) => set({
+    selectedAnnotationId: id,
+    selectedAnnotationIds: id ? [id] : []
+  }),
+
+  setSelectedAnnotations: (ids) => set({
+    selectedAnnotationIds: ids,
+    selectedAnnotationId: ids.length === 1 ? ids[0] : null
+  }),
+
+  toggleAnnotationSelection: (id) =>
+    set((state) => {
+      const isSelected = state.selectedAnnotationIds.includes(id);
+      const newIds = isSelected
+        ? state.selectedAnnotationIds.filter(selId => selId !== id)
+        : [...state.selectedAnnotationIds, id];
+      return {
+        selectedAnnotationIds: newIds,
+        selectedAnnotationId: newIds.length === 1 ? newIds[0] : null,
+      };
+    }),
+
+  deleteSelectedAnnotations: () =>
+    set((state) => {
+      if (state.selectedAnnotationIds.length === 0) return state;
+      const newAnnotations = state.annotations.filter(
+        (ann) => !state.selectedAnnotationIds.includes(ann.id)
+      );
+      const newHistory = state.history.slice(0, state.historyIndex + 1);
+      newHistory.push(newAnnotations);
+      return {
+        annotations: newAnnotations,
+        history: newHistory,
+        historyIndex: newHistory.length - 1,
+        selectedAnnotationId: null,
+        selectedAnnotationIds: [],
+      };
+    }),
 
   undo: () =>
     set((state) => {

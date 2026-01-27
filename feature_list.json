@@ -601,7 +601,7 @@
         "Verify multiple items selected",
         "Delete or move selected group"
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }

@@ -16,7 +16,10 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     updateAnnotation,
     deleteAnnotation,
     selectedAnnotationId,
+    selectedAnnotationIds,
     setSelectedAnnotation,
+    toggleAnnotationSelection,
+    deleteSelectedAnnotations,
     penColor,
     penWidth,
     fontSize,
@@ -127,12 +130,20 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       });
 
       if (clickedAnnotation) {
-        setSelectedAnnotation(clickedAnnotation.id);
-        // Start dragging
-        setIsDragging(true);
-        setDragStart({ x, y });
+        // Check if Shift key is held for multi-select
+        if (e.shiftKey) {
+          toggleAnnotationSelection(clickedAnnotation.id);
+        } else {
+          setSelectedAnnotation(clickedAnnotation.id);
+          // Start dragging only if not multi-selecting
+          setIsDragging(true);
+          setDragStart({ x, y });
+        }
       } else {
-        setSelectedAnnotation(null);
+        // Clicked on empty space - clear selection
+        if (!e.shiftKey) {
+          setSelectedAnnotation(null);
+        }
       }
     }
   };
@@ -416,15 +427,15 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedAnnotationId) {
-          deleteAnnotation(selectedAnnotationId);
+        if (selectedAnnotationIds.length > 0) {
+          deleteSelectedAnnotations();
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedAnnotationId, deleteAnnotation]);
+  }, [selectedAnnotationIds, deleteSelectedAnnotations]);
 
   const pageAnnotations = annotations.filter((ann) => ann.pageNumber === pageNumber);
 
@@ -548,7 +559,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               ));
             } else if (annotation.type === 'shape') {
               const shape = annotation as ShapeAnnotation;
-              const isSelected = annotation.id === selectedAnnotationId;
+              const isSelected = selectedAnnotationIds.includes(annotation.id);
               if (shape.data.shapeType === 'rectangle') {
                 return (
                   <g key={annotation.id}>
@@ -661,7 +672,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               }
             } else if (annotation.type === 'highlight') {
               const highlight = annotation as HighlightAnnotation;
-              const isSelected = annotation.id === selectedAnnotationId;
+              const isSelected = selectedAnnotationIds.includes(annotation.id);
               return (
                 <g key={annotation.id}>
                   <rect
@@ -695,7 +706,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         {pageAnnotations.map((annotation) => {
           if (annotation.type === 'text' && annotation.id !== editingTextId) {
             const textAnn = annotation as TextAnnotation;
-            const isSelected = annotation.id === selectedAnnotationId;
+            const isSelected = selectedAnnotationIds.includes(annotation.id);
             return (
               <div
                 key={annotation.id}
@@ -725,7 +736,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         {pageAnnotations.map((annotation) => {
           if (annotation.type === 'image') {
             const imgAnn = annotation as ImageAnnotation;
-            const isSelected = annotation.id === selectedAnnotationId;
+            const isSelected = selectedAnnotationIds.includes(annotation.id);
             return (
               <div key={annotation.id}>
                 <img
