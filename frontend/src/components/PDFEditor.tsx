@@ -517,7 +517,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         <button
           onClick={handlePrevPage}
           disabled={currentPage <= 1}
-          className="px-3 py-1 bg-blue-600 text-white rounded disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700"
+          className="px-3 py-1 bg-blue-600 text-white rounded disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
           title="Go to previous page (Left arrow key)"
         >
           Previous
@@ -530,7 +530,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file, onClose }) => {
         <button
           onClick={handleNextPage}
           disabled={currentPage >= numPages}
-          className="px-3 py-1 bg-blue-600 text-white rounded disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700"
+          className="px-3 py-1 bg-blue-600 text-white rounded disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
           title="Go to next page (Right arrow key)"
         >
           Next

@@ -71,7 +71,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-sm bg-gray-200 hover:bg-gray-300 rounded"
+            className="px-3 py-1.5 text-sm bg-gray-200 hover:bg-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             title="Close editor and return to home"
           >
             ← Back
@@ -82,7 +82,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={undo}
             disabled={!canUndo}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
             title="Undo last action (Ctrl+Z or Cmd+Z)"
           >
             ↶ Undo
@@ -91,7 +91,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={redo}
             disabled={!canRedo}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500"
             title="Redo undone action (Ctrl+Y or Cmd+Y)"
           >
             ↷ Redo
@@ -102,7 +102,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={onDownload}
             disabled={downloading}
-            className="px-3 py-1.5 text-sm bg-green-600 text-white hover:bg-green-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-3 py-1.5 text-sm bg-green-600 text-white hover:bg-green-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-400"
             title="Download PDF with all annotations (Ctrl+S or Cmd+S)"
           >
             {downloading ? (
@@ -121,7 +121,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             <button
               key={tool.id}
               onClick={() => setCurrentTool(tool.id)}
-              className={`px-3 py-1.5 text-sm rounded transition-colors ${
+              className={`px-3 py-1.5 text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 currentTool === tool.id
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -212,7 +212,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
             <div className="h-6 w-px bg-gray-300 mx-2"></div>
             <button
               onClick={deleteSelectedAnnotations}
-              className="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded"
+              className="px-3 py-1.5 text-sm bg-red-600 text-white hover:bg-red-700 rounded focus:outline-none focus:ring-2 focus:ring-red-400"
               title={`Delete selected annotation${selectedAnnotationIds.length > 1 ? 's' : ''} (Delete or Backspace key)`}
             >
               🗑 Delete {selectedAnnotationIds.length > 1 ? `(${selectedAnnotationIds.length})` : ''}
@@ -223,7 +223,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={onZoomOut}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             title="Zoom out (- key)"
           >
             -
@@ -233,7 +233,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
           </span>
           <button
             onClick={onZoomIn}
-            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded"
+            className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             title="Zoom in (+ or = key)"
           >
             +

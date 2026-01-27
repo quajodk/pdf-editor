@@ -484,7 +484,7 @@
         "Verify focus indicators visible",
         "Activate tools with Enter/Space"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 41,
@@ -518,7 +518,7 @@
         "Measure time to first render",
         "Verify renders in < 3 seconds"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 44,
@@ -530,7 +530,7 @@
         "Verify no lag or jank",
         "Check frame rate stays high"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 45,
