@@ -1802,3 +1802,171 @@ This brings the project to a **major milestone: 60% completion (30/50 tests pass
 
 ---
 
+## Session 11 - Page Rotation Feature (2026-01-27)
+
+### What Was Implemented
+
+1. **Page Rotation Functionality** ✅
+   - Added rotate button (↻) to each page thumbnail in the sidebar
+   - Rotate button positioned in top-left corner of each thumbnail (blue background)
+   - Rotates pages in 90-degree increments clockwise
+   - Rotation cycles: 0° → 90° → 180° → 270° → 0°
+   - Implemented using pdf-lib's `page.setRotation(degrees(angle))` API
+   - Full rotation cycle verified through automated testing
+
+2. **PDF State Management** ✅
+   - Modified PDF saved to new File object after rotation
+   - Forces re-render of all components with rotated pages
+   - Rotation persists in the PDF document
+   - Loading indicator shown during rotation operation
+   - Proper error handling with user-friendly alerts
+
+3. **Technical Implementation** ✅
+   - Imported `degrees` function from pdf-lib
+   - Added `handlePageRotate` async function in PDFEditor.tsx
+   - Loads PDF, gets target page, calculates new rotation angle
+   - Uses modulo operator to cycle rotation: `(currentRotation + 90) % 360`
+   - Saves modified PDF and updates state to trigger re-render
+   - Fixed TypeScript compilation error by using correct pdf-lib API
+
+4. **UI/UX Enhancements** ✅
+   - Rotate button appears on all page thumbnails
+   - Clear icon (↻) indicates rotation action
+   - Tooltip shows "Rotate page N 90° clockwise"
+   - Blue color matches app theme (consistent with other controls)
+   - Button positioned to not interfere with delete button
+
+5. **Browser Testing** ✅
+   - Created test-page-rotation.js automated test
+   - Verified complete rotation cycle (4 clicks = back to original)
+   - Tested rotation on multiple pages
+   - Captured 7 screenshots showing rotation progression
+   - Confirmed no console errors during operation
+
+### Current Status
+
+✅ **Working Features (31 of 50 tests passing - 62%):**
+- PDF Upload (#1) ✓
+- PDF Display (#2) ✓
+- Page Navigation (#3) ✓
+- Zoom Controls (#4) ✓
+- Text Addition (#5) ✓
+- Text Editing (#6) ✓
+- Text Deletion (#7) ✓
+- Text Styling - Font Size (#8) ✓
+- Text Styling - Font Color (#9) ✓
+- Text Styling - Font Family (#10) ✓
+- Pen Drawing (#11) ✓
+- Pen Color (#12) ✓
+- Pen Width (#13) ✓
+- Eraser Tool (#14) ✓
+- Shape Tools: Rectangle (#15), Circle (#16), Line (#17), Arrow (#18) ✓
+- Highlight Tool (#19) ✓
+- Image Upload (#20) ✓
+- Image Resize (#21) ✓
+- Image Move (#22) ✓
+- Image Delete (#23) ✓
+- Undo/Redo (#24, #25) ✓
+- Save PDF with Annotations (#26) ✓
+- Page Thumbnails (#28) ✓
+- Page Deletion (#29) ✓
+- **Page Rotation (#31) ✓ NEW**
+- Keyboard Shortcuts (#34) ✓
+- Selection Tool (#49) ✓
+
+### Test Results
+- **31 of 50 tests passing (62%)**
+- **+1 test from previous session** (Test #31)
+- 19 tests remaining
+
+### Implementation Details
+
+**Page Rotation Flow:**
+```
+1. User opens page thumbnails sidebar
+2. Each thumbnail shows blue rotate button (↻) in top-left corner
+3. User clicks rotate button on specific page
+4. handlePageRotate async function executes:
+   - Loads PDF with pdf-lib
+   - Gets page using pageNumber - 1 (0-indexed)
+   - Calculates new rotation: (current + 90) % 360
+   - Applies rotation using page.setRotation(degrees(newRotation))
+   - Saves modified PDF to new File object
+   - Updates currentFile state
+   - Forces re-render with setTimeout
+5. Page displays with new rotation
+6. Rotation persists in saved PDF
+```
+
+**Key Code Changes:**
+
+**PageThumbnails.tsx:**
+- Added `onPageRotate` prop to interface
+- Added rotate button component before delete button
+- Positioned in top-left (left-1, top-1)
+- Blue color scheme (bg-blue-600)
+- Icon: ↻ (Unicode circular arrow)
+
+**PDFEditor.tsx:**
+- Imported `degrees` from pdf-lib
+- Implemented `handlePageRotate` async function
+- Uses pdf-lib's rotation API correctly
+- Passes `onPageRotate={handlePageRotate}` to PageThumbnails
+- Proper loading state management
+
+### Known Issues
+- None identified with page rotation feature
+- 19 tests still need implementation
+- Note: Annotations on rotated pages maintain their original orientation (by design)
+
+### Files Modified/Created in Session 11
+1. **frontend/src/components/PageThumbnails.tsx** - Added rotate button UI
+2. **frontend/src/components/PDFEditor.tsx** - Implemented rotation logic
+3. **feature_list.json** - Marked test #31 as passing
+4. **test-page-rotation.js** - New: Browser automation test
+5. **screenshots/rotation-*.png** - 7 screenshots documenting rotation cycles
+
+### Git Commits
+- `13f4fd9`: Implement: Page rotation feature
+
+### Next Steps for Future Sessions
+
+**High Priority - Remaining Page Management:**
+1. **Page Reordering (#30)** - Drag-and-drop pages in thumbnail sidebar
+
+**High Priority - Advanced Features:**
+2. **Multiple File Support (#27)** - Work with multiple PDFs simultaneously
+3. **Multi-Select Annotations (#50)** - Shift+click or drag selection box
+4. **Search Text (#32)** - Find text within PDF
+5. **Print Support (#33)** - Print PDF with annotations
+
+**Medium Priority - Polish:**
+6. Tooltips (#48)
+7. Toolbar organization (#47)
+8. Dark mode (#46)
+9. Responsive design (#35)
+
+**Lower Priority - Quality:**
+10. Error handling improvements (#36-39)
+11. Loading states (#39)
+12. Accessibility improvements (#40-42)
+13. Performance optimization (#43-45)
+
+### Session Summary
+
+Successfully implemented page rotation functionality for the PDF editor. Users can now rotate individual pages in 90-degree increments by clicking the rotate button on page thumbnails. The implementation uses pdf-lib's proper API with the `degrees()` function, and rotation persists in the PDF document.
+
+Key achievements:
+- Fully functional page rotation with visual feedback
+- PDF document modified with persistent rotations
+- Complete rotation cycle verified (0° → 90° → 180° → 270° → 0°)
+- Clean UI integration with existing page thumbnails
+- Automated browser testing confirms functionality
+- No console errors or TypeScript compilation issues
+
+This brings the project past **62% completion (31/50 tests passing)**. All page management features except reordering are now complete (thumbnails, deletion, rotation). The core editing functionality is solid, and remaining work focuses on advanced features and polish.
+
+**Progress: 31/50 tests passing (62%) → +1 test from previous session**
+
+---
+
