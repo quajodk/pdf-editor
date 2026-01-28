@@ -134,6 +134,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   removeDocument: (id: string) =>
     set((state) => {
+      // Clean up the document being removed to prevent memory leaks
+      const removedDoc = state.documents.find(doc => doc.id === id);
+      if (removedDoc) {
+        // Revoke any object URLs created for image annotations
+        removedDoc.annotations.forEach(ann => {
+          if (ann.type === 'image' && (ann as any).data?.src?.startsWith('blob:')) {
+            URL.revokeObjectURL((ann as any).data.src);
+          }
+        });
+      }
+
       const newDocs = state.documents.filter(doc => doc.id !== id);
       const newCurrentId = state.currentDocumentId === id
         ? (newDocs.length > 0 ? newDocs[0].id : null)

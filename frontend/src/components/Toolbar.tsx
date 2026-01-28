@@ -69,7 +69,8 @@ const Toolbar: React.FC<ToolbarProps> = ({
 
   return (
     <div className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 shadow-sm transition-colors">
-      <div className="flex items-center justify-between px-4 py-2 flex-wrap gap-2">
+      {/* Desktop toolbar - hidden on mobile */}
+      <div className="hidden lg:flex items-center justify-between px-4 py-2 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <button
             onClick={undo}
@@ -253,6 +254,180 @@ const Toolbar: React.FC<ToolbarProps> = ({
             +
           </button>
         </div>
+      </div>
+
+      {/* Mobile/Tablet toolbar - shown on smaller screens */}
+      <div className="lg:hidden">
+        {/* Top row - main actions */}
+        <div className="flex items-center justify-between px-2 py-2 gap-1 border-b dark:border-gray-700">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={undo}
+              disabled={!canUndo}
+              className="px-2 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              title="Undo"
+              aria-label="Undo last action"
+            >
+              ↶
+            </button>
+            <button
+              onClick={redo}
+              disabled={!canRedo}
+              className="px-2 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              title="Redo"
+              aria-label="Redo undone action"
+            >
+              ↷
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onDownload}
+              disabled={downloading}
+              className="px-2 py-1.5 text-sm bg-green-600 dark:bg-green-500 text-white hover:bg-green-700 dark:hover:bg-green-600 rounded disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors"
+              title="Save"
+              aria-label="Download PDF"
+            >
+              {downloading ? '⏳' : '⬇'}
+            </button>
+            <button
+              onClick={onPrint}
+              className="px-2 py-1.5 text-sm bg-blue-600 dark:bg-blue-500 text-white hover:bg-blue-700 dark:hover:bg-blue-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors"
+              title="Print"
+              aria-label="Print PDF"
+            >
+              🖨
+            </button>
+            <button
+              onClick={onSearchToggle}
+              className="px-2 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              title="Search"
+              aria-label="Search"
+            >
+              🔍
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onZoomOut}
+              className="px-2 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              title="Zoom out"
+            >
+              -
+            </button>
+            <span className="text-xs text-gray-700 dark:text-gray-300 w-10 text-center" title="Zoom level">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              onClick={onZoomIn}
+              className="px-2 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+              title="Zoom in"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {/* Second row - tools */}
+        <div className="flex items-center justify-start px-2 py-2 gap-1 overflow-x-auto">
+          {tools.map((tool) => (
+            <button
+              key={tool.id}
+              onClick={() => setCurrentTool(tool.id)}
+              className={`flex-shrink-0 px-2 py-1.5 text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                currentTool === tool.id
+                  ? 'bg-blue-600 dark:bg-blue-500 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
+              }`}
+              title={tool.label}
+              aria-label={`${tool.label} tool`}
+            >
+              <span className="text-base">{tool.icon}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Third row - styling controls (shown when text or drawing tool active) */}
+        {(isDrawingTool || isTextTool) && (
+          <div className="flex items-center justify-start px-2 py-2 gap-2 border-t dark:border-gray-700 overflow-x-auto">
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <label className="text-xs text-gray-600 dark:text-gray-400">Color:</label>
+              <input
+                type="color"
+                value={isTextTool ? fontColor : penColor}
+                onChange={(e) => isTextTool ? setFontColor(e.target.value) : setPenColor(e.target.value)}
+                className="w-8 h-7 rounded cursor-pointer"
+                title="Color"
+              />
+            </div>
+
+            {isDrawingTool && (
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <label className="text-xs text-gray-600 dark:text-gray-400">Width:</label>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={penWidth}
+                  onChange={(e) => setPenWidth(Number(e.target.value))}
+                  className="w-16"
+                  title="Width"
+                />
+                <span className="text-xs text-gray-600 dark:text-gray-400 w-4">{penWidth}</span>
+              </div>
+            )}
+
+            {isTextTool && (
+              <>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <label className="text-xs text-gray-600 dark:text-gray-400">Font:</label>
+                  <select
+                    value={fontFamily}
+                    onChange={(e) => setFontFamily(e.target.value)}
+                    className="px-1 py-1 text-xs border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    title="Font"
+                  >
+                    <option value="Arial">Arial</option>
+                    <option value="Times New Roman">Times</option>
+                    <option value="Courier New">Courier</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="Helvetica">Helvetica</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <label className="text-xs text-gray-600 dark:text-gray-400">Size:</label>
+                  <input
+                    type="range"
+                    min="8"
+                    max="48"
+                    value={fontSize}
+                    onChange={(e) => setFontSize(Number(e.target.value))}
+                    className="w-16"
+                    title="Size"
+                  />
+                  <span className="text-xs text-gray-600 dark:text-gray-400 w-6">{fontSize}</span>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Delete button row (shown when annotations selected) */}
+        {selectedAnnotationIds.length > 0 && (
+          <div className="flex items-center justify-center px-2 py-2 border-t dark:border-gray-700">
+            <button
+              onClick={deleteSelectedAnnotations}
+              className="w-full px-3 py-1.5 text-sm bg-red-600 dark:bg-red-500 text-white hover:bg-red-700 dark:hover:bg-red-600 rounded focus:outline-none focus:ring-2 focus:ring-red-400 transition-colors"
+              title="Delete selected"
+            >
+              🗑 Delete {selectedAnnotationIds.length > 1 ? `(${selectedAnnotationIds.length})` : ''}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

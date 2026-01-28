@@ -426,7 +426,7 @@
         "Resize to mobile size",
         "Verify mobile layout works"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 36,
@@ -449,7 +449,7 @@
         "Verify PDF loads successfully",
         "Verify performance is acceptable"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 38,
@@ -460,7 +460,7 @@
         "Verify error message appears",
         "Verify app doesn't crash"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 39,
@@ -541,7 +541,7 @@
         "Monitor memory usage",
         "Verify memory is released"
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 46,
