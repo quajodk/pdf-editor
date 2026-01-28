@@ -23,6 +23,9 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
   const [downloading, setDownloading] = useState(false);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(false);
   const [currentFile, setCurrentFile] = useState<File>(file);
+  const [loadingProgress, setLoadingProgress] = useState<string>('');
+  const [textExtractionProgress, setTextExtractionProgress] = useState<number>(0);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const {
     currentPage,
     setCurrentPage,
@@ -45,6 +48,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     setTotalPages(numPages);
     setCurrentPage(1);
     setLoading(false);
+    setLoadingProgress('Extracting text from PDF...');
 
     // Extract text from all pages for edit mode
     try {
@@ -53,6 +57,11 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       const allExtractedText: ExtractedTextItem[] = [];
 
       for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        // Update progress
+        const progress = Math.round((pageNum / numPages) * 100);
+        setTextExtractionProgress(progress);
+        setLoadingProgress(`Extracting text from page ${pageNum} of ${numPages}...`);
+
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
         const viewport = page.getViewport({ scale: 1.0 });
@@ -84,8 +93,12 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       }
 
       setExtractedText(allExtractedText);
+      setLoadingProgress('');
+      setTextExtractionProgress(0);
     } catch (error) {
       console.error('Error extracting text:', error);
+      setLoadingProgress('');
+      setTextExtractionProgress(0);
     }
   };
 
@@ -141,14 +154,22 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     }
 
     setDownloading(true);
+    setDownloadProgress(0);
     try {
       // Load the current PDF
+      setDownloadProgress(5);
       const arrayBuffer = await currentFile.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer);
       const pages = pdfDoc.getPages();
+      setDownloadProgress(10);
 
       // Render annotations onto each page
-      for (const annotation of annotations) {
+      const totalAnnotations = annotations.length;
+      for (let i = 0; i < annotations.length; i++) {
+        const annotation = annotations[i];
+        // Update progress (10% to 80% for annotations)
+        const progress = 10 + Math.round((i / totalAnnotations) * 70);
+        setDownloadProgress(progress);
         const pageIndex = annotation.pageNumber - 1;
         if (pageIndex < 0 || pageIndex >= pages.length) continue;
 
@@ -292,7 +313,9 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       }
 
       // Save and download the modified PDF
+      setDownloadProgress(80);
       const pdfBytes = await pdfDoc.save();
+      setDownloadProgress(90);
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -302,11 +325,14 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+      setDownloadProgress(100);
     } catch (error) {
       console.error('Error downloading PDF:', error);
       alert('Failed to download PDF with annotations. Please try again.');
+      setDownloadProgress(0);
     } finally {
       setDownloading(false);
+      setTimeout(() => setDownloadProgress(0), 1000); // Reset after 1 second
     }
   }, [annotations, currentFile]);
 
@@ -769,6 +795,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         onPrint={handlePrint}
         onSearchToggle={handleSearchToggle}
         downloading={downloading}
+        downloadProgress={downloadProgress}
         zoom={zoom}
         currentPage={currentPage}
         totalPages={numPages}
@@ -795,6 +822,21 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
               <p className="mt-4 text-gray-600 dark:text-gray-300">Loading PDF...</p>
+            </div>
+          </div>
+        )}
+
+        {!loading && loadingProgress && (
+          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-700 px-6 py-4 rounded-lg shadow-lg z-50 border border-gray-200 dark:border-gray-600">
+            <div className="text-center">
+              <div className="text-sm text-gray-700 dark:text-gray-200 mb-2">{loadingProgress}</div>
+              <div className="w-64 bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
+                <div
+                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${textExtractionProgress}%` }}
+                ></div>
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{textExtractionProgress}%</div>
             </div>
           </div>
         )}

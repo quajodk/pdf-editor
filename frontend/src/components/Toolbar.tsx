@@ -9,6 +9,7 @@ interface ToolbarProps {
   onPrint: () => void;
   onSearchToggle: () => void;
   downloading?: boolean;
+  downloadProgress?: number;
   zoom: number;
   currentPage: number;
   totalPages: number;
@@ -22,6 +23,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onPrint,
   onSearchToggle,
   downloading = false,
+  downloadProgress = 0,
   zoom,
   currentPage,
   totalPages,
@@ -98,14 +100,17 @@ const Toolbar: React.FC<ToolbarProps> = ({
           <button
             onClick={onDownload}
             disabled={downloading}
-            className="px-3 py-1.5 text-sm bg-green-600 dark:bg-green-500 text-white hover:bg-green-700 dark:hover:bg-green-600 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors"
+            className="px-3 py-1.5 text-sm bg-green-600 dark:bg-green-500 text-white hover:bg-green-700 dark:hover:bg-green-600 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-400 transition-colors relative"
             title="Download PDF with all annotations (Ctrl+S or Cmd+S)"
             aria-label="Download PDF with annotations"
           >
             {downloading ? (
               <>
                 <span className="animate-spin">⏳</span>
-                <span>Saving...</span>
+                <span>Saving... {downloadProgress}%</span>
+                {downloadProgress > 0 && (
+                  <div className="absolute bottom-0 left-0 h-1 bg-green-300 dark:bg-green-700 transition-all duration-300" style={{ width: `${downloadProgress}%` }}></div>
+                )}
               </>
             ) : (
               <>⬇ Save</>
