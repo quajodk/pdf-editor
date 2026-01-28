@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useEditorStore } from '../store/useEditorStore';
-import { Annotation, TextAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation } from '../types';
+import { Annotation, TextAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation, TextEditAnnotation, ExtractedTextItem } from '../types';
 
 interface PDFCanvasProps {
   pageNumber: number;
@@ -25,12 +25,14 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     fontSize,
     fontFamily,
     fontColor,
+    extractedText,
   } = useEditorStore();
 
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
   const [textInput, setTextInput] = useState<{ x: number; y: number; text: string } | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [editingExtractedText, setEditingExtractedText] = useState<ExtractedTextItem | null>(null);
   const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
   const [shapeEnd, setShapeEnd] = useState<{ x: number; y: number } | null>(null);
   const [pendingImagePosition, setPendingImagePosition] = useState<{ x: number; y: number } | null>(null);
@@ -44,6 +46,11 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   const [eraserPath, setEraserPath] = useState<{ x: number; y: number }[]>([]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    // Skip if editText mode - clicking is handled by the overlay divs
+    if (currentTool === 'editText') {
+      return;
+    }
+
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
 
@@ -421,6 +428,30 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       }
     }
     setTextInput(null);
+  };
+
+  const handleExtractedTextSubmit = (newText: string) => {
+    if (editingExtractedText) {
+      // Create a text edit annotation
+      const annotation: TextEditAnnotation = {
+        id: Date.now().toString(),
+        type: 'textEdit',
+        pageNumber,
+        x: editingExtractedText.x,
+        y: editingExtractedText.y,
+        width: editingExtractedText.width,
+        height: editingExtractedText.height,
+        data: {
+          originalText: editingExtractedText.text,
+          newText: newText,
+          fontSize: editingExtractedText.fontSize,
+          fontFamily: editingExtractedText.fontFamily,
+          color: '#000000',
+        },
+      };
+      addAnnotation(annotation);
+    }
+    setEditingExtractedText(null);
   };
 
   // Handle keyboard shortcuts for delete
@@ -811,6 +842,66 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         })}
       </div>
 
+      {/* Render extracted text with highlights in editText mode */}
+      {currentTool === 'editText' && extractedText
+        .filter(t => t.pageNumber === pageNumber)
+        .map((textItem) => {
+          // Check if this text has been edited
+          const editAnnotation = pageAnnotations.find(
+            ann => ann.type === 'textEdit' &&
+            Math.abs(ann.x - textItem.x) < 5 &&
+            Math.abs(ann.y - textItem.y) < 5
+          ) as TextEditAnnotation | undefined;
+
+          // Don't show original text if it has been edited
+          if (editAnnotation) return null;
+
+          return (
+            <div
+              key={textItem.id}
+              className="absolute bg-yellow-200 bg-opacity-30 hover:bg-opacity-50 cursor-pointer border border-yellow-400 border-opacity-50"
+              style={{
+                left: textItem.x * scale,
+                top: (textItem.y - textItem.height) * scale,
+                width: textItem.width * scale,
+                height: textItem.height * scale,
+                pointerEvents: 'auto',
+                zIndex: 10,
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingExtractedText(textItem);
+              }}
+              title="Click to edit this text"
+            />
+          );
+        })}
+
+      {/* Render text edit annotations */}
+      {pageAnnotations.map((annotation) => {
+        if (annotation.type === 'textEdit') {
+          const textEdit = annotation as TextEditAnnotation;
+          return (
+            <div
+              key={annotation.id}
+              className="absolute bg-white"
+              style={{
+                left: annotation.x * scale,
+                top: (annotation.y - annotation.height!) * scale,
+                fontSize: textEdit.data.fontSize * scale,
+                fontFamily: textEdit.data.fontFamily,
+                color: textEdit.data.color,
+                pointerEvents: 'none',
+                whiteSpace: 'pre',
+              }}
+            >
+              {textEdit.data.newText}
+            </div>
+          );
+        }
+        return null;
+      })}
+
       {/* Hidden file input for image upload */}
       <input
         ref={imageInputRef}
@@ -852,6 +943,39 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               minWidth: '200px',
             }}
             placeholder="Type text..."
+          />
+        </div>
+      )}
+
+      {/* Extracted text editing overlay */}
+      {editingExtractedText && (
+        <div
+          className="absolute bg-white border-2 border-green-500 p-1 shadow-lg"
+          style={{
+            left: editingExtractedText.x * scale,
+            top: (editingExtractedText.y - editingExtractedText.height) * scale,
+            zIndex: 1000,
+          }}
+        >
+          <input
+            type="text"
+            autoFocus
+            defaultValue={editingExtractedText.text}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleExtractedTextSubmit(e.currentTarget.value);
+              } else if (e.key === 'Escape') {
+                setEditingExtractedText(null);
+              }
+            }}
+            onBlur={(e) => handleExtractedTextSubmit(e.currentTarget.value)}
+            className="outline-none px-2 py-1"
+            style={{
+              fontSize: editingExtractedText.fontSize * scale,
+              fontFamily: editingExtractedText.fontFamily,
+              color: '#000000',
+              minWidth: `${editingExtractedText.width * scale}px`,
+            }}
           />
         </div>
       )}

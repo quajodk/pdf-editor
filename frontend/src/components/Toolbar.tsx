@@ -51,6 +51,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   const tools: { id: Tool; label: string; icon: string; tooltip: string }[] = [
     { id: 'select', label: 'Select', icon: '↖', tooltip: 'Select and move annotations - Click to select, Shift+Click for multi-select' },
     { id: 'text', label: 'Text', icon: 'T', tooltip: 'Add text annotations - Click to place, double-click to edit' },
+    { id: 'editText', label: 'Edit Text', icon: '📝', tooltip: 'Edit original PDF text - Click on text in PDF to edit it' },
     { id: 'pen', label: 'Pen', icon: '✏', tooltip: 'Draw freehand - Click and drag to draw' },
     { id: 'eraser', label: 'Eraser', icon: '⌫', tooltip: 'Erase pen strokes - Drag over drawings to erase' },
     { id: 'rectangle', label: 'Rectangle', icon: '▭', tooltip: 'Draw rectangles - Click and drag to create' },

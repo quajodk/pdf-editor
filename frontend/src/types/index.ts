@@ -1,12 +1,24 @@
 export interface Annotation {
   id: string;
-  type: 'text' | 'drawing' | 'shape' | 'highlight' | 'image';
+  type: 'text' | 'drawing' | 'shape' | 'highlight' | 'image' | 'textEdit';
   pageNumber: number;
   x: number;
   y: number;
   width?: number;
   height?: number;
   data: any;
+}
+
+// Represents an edit to the original PDF text
+export interface TextEditAnnotation extends Annotation {
+  type: 'textEdit';
+  data: {
+    originalText: string;
+    newText: string;
+    fontSize: number;
+    fontFamily: string;
+    color: string;
+  };
 }
 
 export interface TextAnnotation extends Annotation {
@@ -63,6 +75,7 @@ export interface ImageAnnotation extends Annotation {
 export type Tool =
   | 'select'
   | 'text'
+  | 'editText'
   | 'pen'
   | 'eraser'
   | 'rectangle'
@@ -84,4 +97,16 @@ export interface SearchResult {
   pageNumber: number;
   text: string;
   index: number;
+}
+
+export interface ExtractedTextItem {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  fontSize: number;
+  fontFamily: string;
+  pageNumber: number;
 }

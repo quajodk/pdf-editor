@@ -602,6 +602,22 @@
         "Delete or move selected group"
       ],
       "passes": true
+    },
+    {
+      "id": 51,
+      "feature": "Edit Original Text",
+      "description": "User can edit the original PDF text in-place",
+      "steps": [
+        "Upload a PDF with text",
+        "Click 'Edit Text' tool (📝 icon)",
+        "Verify text areas are highlighted in yellow",
+        "Click on a highlighted text area",
+        "Edit the text in the input field",
+        "Press Enter to save",
+        "Verify edited text appears in place",
+        "Download PDF and verify changes persist"
+      ],
+      "passes": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Annotation, Tool, SearchResult } from '../types';
+import { Annotation, Tool, SearchResult, ExtractedTextItem } from '../types';
 
 export interface PDFDocument {
   id: string;
@@ -38,6 +38,8 @@ interface EditorState {
   currentSearchIndex: number;
   isSearchOpen: boolean;
   darkMode: boolean;
+  extractedText: ExtractedTextItem[];
+  setExtractedText: (text: ExtractedTextItem[]) => void;
 
   // Multiple file actions
   addDocument: (file: File) => string; // Returns document ID
@@ -100,6 +102,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   currentSearchIndex: -1,
   isSearchOpen: false,
   darkMode: false,
+  extractedText: [],
 
   // Multiple file actions
   addDocument: (file: File) => {
@@ -489,4 +492,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
       return { darkMode: newDarkMode };
     }),
+
+  setExtractedText: (text) => set({ extractedText: text }),
 }));

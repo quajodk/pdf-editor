@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument, rgb, degrees } from 'pdf-lib';
 import { useEditorStore } from '../store/useEditorStore';
-import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation, SearchResult } from '../types';
+import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation, SearchResult, ExtractedTextItem, TextEditAnnotation } from '../types';
 import Toolbar from './Toolbar';
 import PDFCanvas from './PDFCanvas';
 import PageThumbnails from './PageThumbnails';
@@ -37,13 +37,56 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     searchResults,
     currentSearchIndex,
     setSearchResults,
+    setExtractedText,
   } = useEditorStore();
 
-  const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
+  const onDocumentLoadSuccess = async ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setTotalPages(numPages);
     setCurrentPage(1);
     setLoading(false);
+
+    // Extract text from all pages for edit mode
+    try {
+      const loadingTask = pdfjs.getDocument(URL.createObjectURL(currentFile));
+      const pdf = await loadingTask.promise;
+      const allExtractedText: ExtractedTextItem[] = [];
+
+      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        const viewport = page.getViewport({ scale: 1.0 });
+
+        textContent.items.forEach((item: any, index: number) => {
+          if (item.str && item.str.trim()) {
+            const transform = item.transform;
+            // PDF.js provides text position in PDF coordinates
+            // transform[4] is x, transform[5] is y
+            const x = transform[4];
+            const y = viewport.height - transform[5]; // Flip Y coordinate
+            const width = item.width;
+            const height = item.height;
+            const fontSize = Math.round(transform[0]); // Font size approximation
+
+            allExtractedText.push({
+              id: `text-${pageNum}-${index}`,
+              text: item.str,
+              x,
+              y,
+              width,
+              height,
+              fontSize,
+              fontFamily: item.fontName || 'Arial',
+              pageNumber: pageNum,
+            });
+          }
+        });
+      }
+
+      setExtractedText(allExtractedText);
+    } catch (error) {
+      console.error('Error extracting text:', error);
+    }
   };
 
   const onDocumentLoadError = (error: Error) => {
@@ -125,6 +168,31 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
             });
           } catch (error) {
             console.error('Error drawing text annotation:', error);
+          }
+        } else if (annotation.type === 'textEdit') {
+          const textEditAnn = annotation as TextEditAnnotation;
+          const color = hexToRgb(textEditAnn.data.color);
+
+          try {
+            // First, draw a white rectangle to cover the original text
+            page.drawRectangle({
+              x: textEditAnn.x,
+              y: pageHeight - textEditAnn.y,
+              width: textEditAnn.width || 100,
+              height: textEditAnn.height || 20,
+              color: rgb(1, 1, 1),
+              borderWidth: 0,
+            });
+
+            // Then draw the new text
+            page.drawText(textEditAnn.data.newText, {
+              x: textEditAnn.x,
+              y: pageHeight - textEditAnn.y,
+              size: textEditAnn.data.fontSize,
+              color: rgb(color.r, color.g, color.b),
+            });
+          } catch (error) {
+            console.error('Error drawing text edit annotation:', error);
           }
         } else if (annotation.type === 'shape') {
           const shapeAnn = annotation as ShapeAnnotation;
@@ -364,6 +432,25 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               x: textAnn.x,
               y: pageHeight - textAnn.y - textAnn.data.fontSize,
               size: textAnn.data.fontSize,
+              color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+            });
+          } else if (annotation.type === 'textEdit') {
+            const textEditAnn = annotation as TextEditAnnotation;
+            const colorRgb = hexToRgb(textEditAnn.data.color);
+            // Cover original text
+            page.drawRectangle({
+              x: textEditAnn.x,
+              y: pageHeight - textEditAnn.y,
+              width: textEditAnn.width || 100,
+              height: textEditAnn.height || 20,
+              color: rgb(1, 1, 1),
+              borderWidth: 0,
+            });
+            // Draw new text
+            page.drawText(textEditAnn.data.newText, {
+              x: textEditAnn.x,
+              y: pageHeight - textEditAnn.y,
+              size: textEditAnn.data.fontSize,
               color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
             });
           } else if (annotation.type === 'drawing') {
