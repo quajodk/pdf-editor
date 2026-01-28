@@ -52,25 +52,25 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     setLoading(false);
   };
 
-  const handlePrevPage = () => {
+  const handlePrevPage = useCallback(() => {
     if (currentPage > 1) {
       setCurrentPage(currentPage - 1);
     }
-  };
+  }, [currentPage, setCurrentPage]);
 
-  const handleNextPage = () => {
+  const handleNextPage = useCallback(() => {
     if (currentPage < numPages) {
       setCurrentPage(currentPage + 1);
     }
-  };
+  }, [currentPage, numPages, setCurrentPage]);
 
-  const handleZoomIn = () => {
+  const handleZoomIn = useCallback(() => {
     setZoom(zoom + 0.1);
-  };
+  }, [zoom, setZoom]);
 
-  const handleZoomOut = () => {
+  const handleZoomOut = useCallback(() => {
     setZoom(zoom - 0.1);
-  };
+  }, [zoom, setZoom]);
 
   const hexToRgb = (hex: string) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -83,7 +83,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       : { r: 0, g: 0, b: 0 };
   };
 
-  const handleDownload = async () => {
+  const handleDownload = useCallback(async () => {
     if (annotations.length === 0) {
       // If no annotations, just download the current file
       const url = URL.createObjectURL(currentFile);
@@ -240,7 +240,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     } finally {
       setDownloading(false);
     }
-  };
+  }, [annotations, currentFile]);
 
   const handlePageDelete = async (pageNumber: number) => {
     if (numPages <= 1) {
@@ -340,7 +340,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     }
   };
 
-  const handlePrint = async () => {
+  const handlePrint = useCallback(async () => {
     try {
       // If there are annotations, we need to render them into the PDF first
       if (annotations.length > 0) {
@@ -474,7 +474,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       console.error('Error printing PDF:', error);
       alert('Failed to print PDF. Please try again.');
     }
-  };
+  }, [annotations, currentFile]);
 
   const handlePageReorder = async (fromPage: number, toPage: number) => {
     setLoading(true);
@@ -593,9 +593,9 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     }
   }, [currentFile, numPages, setSearchResults]);
 
-  const handleSearchToggle = () => {
+  const handleSearchToggle = useCallback(() => {
     setIsSearchOpen(!isSearchOpen);
-  };
+  }, [isSearchOpen, setIsSearchOpen]);
 
   // Navigate to search result when currentSearchIndex changes
   useEffect(() => {
@@ -671,7 +671,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, currentPage, numPages, zoom]);
+  }, [undo, redo, handlePrevPage, handleNextPage, handleZoomIn, handleZoomOut, handleSearchToggle, handleDownload, handlePrint]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
