@@ -26,6 +26,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     fontFamily,
     fontColor,
     extractedText,
+    updateExtractedTextItem,
   } = useEditorStore();
 
   const [isDrawing, setIsDrawing] = useState(false);
@@ -302,9 +303,16 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
   const handleMouseUp = () => {
     // Handle text block resize completion
+    // Note: This handler is now primarily handled by the global useEffect hook
+    // to ensure mouseup events are captured even when the mouse moves outside the canvas
     if (resizingTextBlock && resizePreview) {
-      // Update the extracted text item dimensions (stored in Zustand)
-      // Note: This will be used when creating the text edit annotation
+      updateExtractedTextItem(resizingTextBlock.id, {
+        x: resizePreview.x,
+        y: resizePreview.y + resizePreview.height, // Note: y is at the bottom of the text block
+        width: resizePreview.width,
+        height: resizePreview.height,
+      });
+
       setResizingTextBlock(null);
       setResizePreview(null);
       setResizeHandle(null);
@@ -528,6 +536,68 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedAnnotationIds, deleteSelectedAnnotations]);
+
+  // Handle global mouse events when resizing text blocks
+  useEffect(() => {
+    if (!resizingTextBlock) return;
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!canvasRef.current || !dragStart || !resizeHandle || !resizePreview) return;
+
+      const rect = canvasRef.current.getBoundingClientRect();
+      const dx = (e.clientX - dragStart.x) / scale;
+      const dy = (e.clientY - dragStart.y) / scale;
+
+      let newX = resizePreview.x;
+      let newY = resizePreview.y;
+      let newWidth = resizePreview.width;
+      let newHeight = resizePreview.height;
+
+      if (resizeHandle === 'se') {
+        newWidth = Math.max(20, resizingTextBlock.width + dx);
+        newHeight = Math.max(10, resizingTextBlock.height + dy);
+      } else if (resizeHandle === 'sw') {
+        newWidth = Math.max(20, resizingTextBlock.width - dx);
+        newHeight = Math.max(10, resizingTextBlock.height + dy);
+        newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
+      } else if (resizeHandle === 'ne') {
+        newWidth = Math.max(20, resizingTextBlock.width + dx);
+        newHeight = Math.max(10, resizingTextBlock.height - dy);
+        newY = resizingTextBlock.y - resizingTextBlock.height + (resizingTextBlock.height - newHeight);
+      } else if (resizeHandle === 'nw') {
+        newWidth = Math.max(20, resizingTextBlock.width - dx);
+        newHeight = Math.max(10, resizingTextBlock.height - dy);
+        newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
+        newY = resizingTextBlock.y - resizingTextBlock.height + (resizingTextBlock.height - newHeight);
+      }
+
+      setResizePreview({ x: newX, y: newY, width: newWidth, height: newHeight });
+    };
+
+    const handleGlobalMouseUp = () => {
+      if (resizingTextBlock && resizePreview) {
+        updateExtractedTextItem(resizingTextBlock.id, {
+          x: resizePreview.x,
+          y: resizePreview.y + resizePreview.height,
+          width: resizePreview.width,
+          height: resizePreview.height,
+        });
+      }
+
+      setResizingTextBlock(null);
+      setResizePreview(null);
+      setResizeHandle(null);
+      setDragStart(null);
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [resizingTextBlock, dragStart, resizeHandle, resizePreview, scale, updateExtractedTextItem]);
 
   const pageAnnotations = annotations.filter((ann) => ann.pageNumber === pageNumber);
 

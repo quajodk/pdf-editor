@@ -40,6 +40,7 @@ interface EditorState {
   darkMode: boolean;
   extractedText: ExtractedTextItem[];
   setExtractedText: (text: ExtractedTextItem[]) => void;
+  updateExtractedTextItem: (id: string, updates: Partial<ExtractedTextItem>) => void;
 
   // Multiple file actions
   addDocument: (file: File) => string; // Returns document ID
@@ -494,4 +495,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   setExtractedText: (text) => set({ extractedText: text }),
+
+  updateExtractedTextItem: (id, updates) => set((state) => {
+    const updatedText = state.extractedText.map(item =>
+      item.id === id ? { ...item, ...updates } : item
+    );
+    return { extractedText: updatedText };
+  }),
 }));
