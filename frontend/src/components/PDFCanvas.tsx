@@ -852,7 +852,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         })}
       </div>
 
-      {/* Render extracted text with highlights in editText mode */}
+      {/* Render extracted text with dotted borders in editText mode */}
       {currentTool === 'editText' && extractedText
         .filter(t => t.pageNumber === pageNumber)
         .map((textItem) => {
@@ -869,7 +869,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           return (
             <div
               key={textItem.id}
-              className="absolute bg-yellow-200 bg-opacity-30 hover:bg-opacity-50 cursor-pointer border border-yellow-400 border-opacity-50"
+              className="absolute cursor-pointer hover:bg-blue-50 hover:bg-opacity-20 transition-colors group"
               style={{
                 left: textItem.x * scale,
                 top: (textItem.y - textItem.height) * scale,
@@ -877,20 +877,69 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 height: textItem.height * scale,
                 pointerEvents: 'auto',
                 zIndex: 10,
+                border: '2px dashed #3B82F6',
+                borderRadius: '2px',
+                boxSizing: 'border-box',
               }}
               onClick={(e) => {
                 e.stopPropagation();
                 setEditingExtractedText(textItem);
               }}
               title="Click to edit this text"
-            />
+            >
+              {/* Show resize handles on hover */}
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Corner handles */}
+                <div
+                  className="absolute bg-blue-500 rounded-full border-2 border-white"
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    left: '-5px',
+                    top: '-5px',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  className="absolute bg-blue-500 rounded-full border-2 border-white"
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    right: '-5px',
+                    top: '-5px',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  className="absolute bg-blue-500 rounded-full border-2 border-white"
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    left: '-5px',
+                    bottom: '-5px',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <div
+                  className="absolute bg-blue-500 rounded-full border-2 border-white"
+                  style={{
+                    width: '10px',
+                    height: '10px',
+                    right: '-5px',
+                    bottom: '-5px',
+                    pointerEvents: 'none',
+                  }}
+                />
+              </div>
+            </div>
           );
         })}
 
-      {/* Render text edit annotations */}
+      {/* Render text edit annotations with dotted border when in edit mode */}
       {pageAnnotations.map((annotation) => {
         if (annotation.type === 'textEdit') {
           const textEdit = annotation as TextEditAnnotation;
+          const showBorder = currentTool === 'editText';
           return (
             <div
               key={annotation.id}
@@ -906,6 +955,9 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 wordBreak: 'break-word',
                 maxWidth: `${annotation.width! * scale}px`,
                 lineHeight: '1.2',
+                border: showBorder ? '2px dashed #10B981' : 'none',
+                borderRadius: '2px',
+                padding: showBorder ? '4px' : '2px',
               }}
             >
               {textEdit.data.newText}
@@ -960,40 +1012,88 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         </div>
       )}
 
-      {/* Extracted text editing overlay */}
+      {/* Extracted text editing overlay with expandable boundaries */}
       {editingExtractedText && (
         <div
-          className="absolute bg-white border-2 border-green-500 p-1 shadow-lg"
+          className="absolute bg-white shadow-2xl"
           style={{
             left: editingExtractedText.x * scale,
             top: (editingExtractedText.y - editingExtractedText.height) * scale,
             zIndex: 1000,
+            border: '2px dashed #3B82F6',
+            borderRadius: '4px',
+            minWidth: `${editingExtractedText.width * scale}px`,
           }}
         >
-          <textarea
-            autoFocus
-            defaultValue={editingExtractedText.text}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.ctrlKey) {
-                handleExtractedTextSubmit(e.currentTarget.value);
-              } else if (e.key === 'Escape') {
-                setEditingExtractedText(null);
-              }
-            }}
-            onBlur={(e) => handleExtractedTextSubmit(e.currentTarget.value)}
-            className="outline-none px-2 py-1 resize"
-            style={{
-              fontSize: editingExtractedText.fontSize * scale,
-              fontFamily: editingExtractedText.fontFamily,
-              color: '#000000',
-              minWidth: `${editingExtractedText.width * scale}px`,
-              minHeight: `${editingExtractedText.height * scale}px`,
-              lineHeight: '1.2',
-            }}
-            rows={Math.ceil(editingExtractedText.text.length / 50) || 1}
-          />
-          <div className="text-xs text-gray-500 mt-1">
-            Press Ctrl+Enter to save, Esc to cancel
+          {/* Expandable textarea container */}
+          <div className="relative p-2">
+            <textarea
+              autoFocus
+              defaultValue={editingExtractedText.text}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                  handleExtractedTextSubmit(e.currentTarget.value);
+                } else if (e.key === 'Escape') {
+                  setEditingExtractedText(null);
+                }
+              }}
+              onBlur={(e) => handleExtractedTextSubmit(e.currentTarget.value)}
+              className="outline-none px-2 py-1 resize border border-gray-300 rounded w-full"
+              style={{
+                fontSize: editingExtractedText.fontSize * scale,
+                fontFamily: editingExtractedText.fontFamily,
+                color: '#000000',
+                minWidth: `${editingExtractedText.width * scale}px`,
+                minHeight: `${editingExtractedText.height * scale}px`,
+                lineHeight: '1.2',
+              }}
+              rows={Math.max(3, Math.ceil(editingExtractedText.text.length / 50))}
+            />
+            {/* Corner resize handles */}
+            <div
+              className="absolute bg-blue-500 rounded-full border-2 border-white"
+              style={{
+                width: '12px',
+                height: '12px',
+                left: '-6px',
+                top: '-6px',
+                pointerEvents: 'none',
+              }}
+            />
+            <div
+              className="absolute bg-blue-500 rounded-full border-2 border-white"
+              style={{
+                width: '12px',
+                height: '12px',
+                right: '-6px',
+                top: '-6px',
+                pointerEvents: 'none',
+              }}
+            />
+            <div
+              className="absolute bg-blue-500 rounded-full border-2 border-white"
+              style={{
+                width: '12px',
+                height: '12px',
+                left: '-6px',
+                bottom: '-6px',
+                pointerEvents: 'none',
+              }}
+            />
+            <div
+              className="absolute bg-blue-500 rounded-full border-2 border-white"
+              style={{
+                width: '12px',
+                height: '12px',
+                right: '-6px',
+                bottom: '-6px',
+                pointerEvents: 'none',
+              }}
+            />
+          </div>
+          {/* Help text */}
+          <div className="px-3 pb-2 text-xs text-gray-600 bg-gray-50 rounded-b border-t border-gray-200">
+            <span className="font-semibold">Ctrl+Enter</span> to save · <span className="font-semibold">Esc</span> to cancel · Drag corners to resize
           </div>
         </div>
       )}
