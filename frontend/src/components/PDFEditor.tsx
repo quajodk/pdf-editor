@@ -66,29 +66,77 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         const textContent = await page.getTextContent();
         const viewport = page.getViewport({ scale: 1.0 });
 
-        textContent.items.forEach((item: any, index: number) => {
+        // Group text items into lines based on vertical position
+        const textItems: any[] = [];
+        textContent.items.forEach((item: any) => {
           if (item.str && item.str.trim()) {
             const transform = item.transform;
-            // PDF.js provides text position in PDF coordinates
-            // transform[4] is x, transform[5] is y
-            const x = transform[4];
-            const y = viewport.height - transform[5]; // Flip Y coordinate
-            const width = item.width;
-            const height = item.height;
-            const fontSize = Math.round(transform[0]); // Font size approximation
-
-            allExtractedText.push({
-              id: `text-${pageNum}-${index}`,
-              text: item.str,
-              x,
-              y,
-              width,
-              height,
-              fontSize,
-              fontFamily: item.fontName || 'Arial',
-              pageNumber: pageNum,
+            textItems.push({
+              str: item.str,
+              x: transform[4],
+              y: viewport.height - transform[5], // Flip Y coordinate
+              width: item.width,
+              height: item.height,
+              fontSize: Math.round(transform[0]),
+              fontName: item.fontName || 'Arial',
             });
           }
+        });
+
+        // Group items into lines (items with similar Y coordinates)
+        const lines: any[][] = [];
+        const yThreshold = 5; // Pixels tolerance for same line
+
+        textItems.forEach((item) => {
+          // Find a line this item belongs to
+          let foundLine = false;
+          for (const line of lines) {
+            if (line.length > 0) {
+              const avgY = line.reduce((sum, i) => sum + i.y, 0) / line.length;
+              if (Math.abs(item.y - avgY) <= yThreshold) {
+                line.push(item);
+                foundLine = true;
+                break;
+              }
+            }
+          }
+
+          if (!foundLine) {
+            lines.push([item]);
+          }
+        });
+
+        // Sort lines by Y position (top to bottom)
+        lines.sort((a, b) => {
+          const avgYA = a.reduce((sum, i) => sum + i.y, 0) / a.length;
+          const avgYB = b.reduce((sum, i) => sum + i.y, 0) / b.length;
+          return avgYA - avgYB;
+        });
+
+        // For each line, sort items by X position and combine into single text block
+        lines.forEach((line, lineIndex) => {
+          // Sort items in the line by X position (left to right)
+          line.sort((a, b) => a.x - b.x);
+
+          // Combine all text items in the line
+          const lineText = line.map(item => item.str).join(' ');
+          const minX = Math.min(...line.map(item => item.x));
+          const maxX = Math.max(...line.map(item => item.x + item.width));
+          const minY = Math.min(...line.map(item => item.y));
+          const maxY = Math.max(...line.map(item => item.y + item.height));
+          const avgFontSize = Math.round(line.reduce((sum, i) => sum + i.fontSize, 0) / line.length);
+
+          allExtractedText.push({
+            id: `text-${pageNum}-${lineIndex}`,
+            text: lineText,
+            x: minX,
+            y: minY,
+            width: maxX - minX,
+            height: maxY - minY,
+            fontSize: avgFontSize,
+            fontFamily: line[0].fontName,
+            pageNumber: pageNum,
+          });
         });
       }
 
@@ -205,12 +253,18 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               borderWidth: 0,
             });
 
-            // Then draw the new text
-            page.drawText(textEditAnn.data.newText, {
-              x: textEditAnn.x,
-              y: pageHeight - textEditAnn.y,
-              size: textEditAnn.data.fontSize,
-              color: rgb(color.r, color.g, color.b),
+            // Then draw the new text, handling multi-line text
+            const lines = textEditAnn.data.newText.split('\n');
+            const lineHeight = textEditAnn.data.fontSize * 1.2;
+            lines.forEach((line, index) => {
+              if (line.trim()) {
+                page.drawText(line, {
+                  x: textEditAnn.x,
+                  y: pageHeight - textEditAnn.y - (index * lineHeight),
+                  size: textEditAnn.data.fontSize,
+                  color: rgb(color.r, color.g, color.b),
+                });
+              }
             });
           } catch (error) {
             console.error('Error drawing text edit annotation:', error);
@@ -472,12 +526,18 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               color: rgb(1, 1, 1),
               borderWidth: 0,
             });
-            // Draw new text
-            page.drawText(textEditAnn.data.newText, {
-              x: textEditAnn.x,
-              y: pageHeight - textEditAnn.y,
-              size: textEditAnn.data.fontSize,
-              color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+            // Draw new text, handling multi-line text
+            const lines = textEditAnn.data.newText.split('\n');
+            const lineHeight = textEditAnn.data.fontSize * 1.2;
+            lines.forEach((line, index) => {
+              if (line.trim()) {
+                page.drawText(line, {
+                  x: textEditAnn.x,
+                  y: pageHeight - textEditAnn.y - (index * lineHeight),
+                  size: textEditAnn.data.fontSize,
+                  color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+                });
+              }
             });
           } else if (annotation.type === 'drawing') {
             const drawingAnn = annotation as DrawingAnnotation;

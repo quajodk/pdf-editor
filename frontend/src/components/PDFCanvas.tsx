@@ -431,7 +431,17 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   };
 
   const handleExtractedTextSubmit = (newText: string) => {
-    if (editingExtractedText) {
+    if (editingExtractedText && newText.trim()) {
+      // Calculate approximate width and height based on text length
+      // Use a rough estimate: average character width is ~60% of fontSize
+      const charWidth = editingExtractedText.fontSize * 0.6;
+      const estimatedWidth = Math.max(editingExtractedText.width, newText.length * charWidth);
+
+      // For multi-line text, calculate height based on line breaks
+      const lines = newText.split('\n');
+      const lineHeight = editingExtractedText.fontSize * 1.2; // 1.2 line height multiplier
+      const estimatedHeight = Math.max(editingExtractedText.height, lines.length * lineHeight);
+
       // Create a text edit annotation
       const annotation: TextEditAnnotation = {
         id: Date.now().toString(),
@@ -439,8 +449,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         pageNumber,
         x: editingExtractedText.x,
         y: editingExtractedText.y,
-        width: editingExtractedText.width,
-        height: editingExtractedText.height,
+        width: estimatedWidth,
+        height: estimatedHeight,
         data: {
           originalText: editingExtractedText.text,
           newText: newText,
@@ -884,7 +894,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           return (
             <div
               key={annotation.id}
-              className="absolute bg-white"
+              className="absolute bg-white px-1"
               style={{
                 left: annotation.x * scale,
                 top: (annotation.y - annotation.height!) * scale,
@@ -892,7 +902,10 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 fontFamily: textEdit.data.fontFamily,
                 color: textEdit.data.color,
                 pointerEvents: 'none',
-                whiteSpace: 'pre',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                maxWidth: `${annotation.width! * scale}px`,
+                lineHeight: '1.2',
               }}
             >
               {textEdit.data.newText}
@@ -957,26 +970,31 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
             zIndex: 1000,
           }}
         >
-          <input
-            type="text"
+          <textarea
             autoFocus
             defaultValue={editingExtractedText.text}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === 'Enter' && e.ctrlKey) {
                 handleExtractedTextSubmit(e.currentTarget.value);
               } else if (e.key === 'Escape') {
                 setEditingExtractedText(null);
               }
             }}
             onBlur={(e) => handleExtractedTextSubmit(e.currentTarget.value)}
-            className="outline-none px-2 py-1"
+            className="outline-none px-2 py-1 resize"
             style={{
               fontSize: editingExtractedText.fontSize * scale,
               fontFamily: editingExtractedText.fontFamily,
               color: '#000000',
               minWidth: `${editingExtractedText.width * scale}px`,
+              minHeight: `${editingExtractedText.height * scale}px`,
+              lineHeight: '1.2',
             }}
+            rows={Math.ceil(editingExtractedText.text.length / 50) || 1}
           />
+          <div className="text-xs text-gray-500 mt-1">
+            Press Ctrl+Enter to save, Esc to cancel
+          </div>
         </div>
       )}
     </>
