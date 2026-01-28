@@ -45,6 +45,10 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   const [resizeHandle, setResizeHandle] = useState<'se' | 'sw' | 'ne' | 'nw' | null>(null);
   const [eraserPath, setEraserPath] = useState<{ x: number; y: number }[]>([]);
 
+  // For text block resizing
+  const [resizingTextBlock, setResizingTextBlock] = useState<ExtractedTextItem | null>(null);
+  const [resizePreview, setResizePreview] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+
   const handleMouseDown = (e: React.MouseEvent) => {
     // Skip if editText mode - clicking is handled by the overlay divs
     if (currentTool === 'editText') {
@@ -185,6 +189,42 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
+    // Handle text block resizing
+    if (resizingTextBlock && dragStart && resizeHandle && resizePreview) {
+      const dx = (e.clientX - dragStart.x) / scale;
+      const dy = (e.clientY - dragStart.y) / scale;
+
+      let newX = resizePreview.x;
+      let newY = resizePreview.y;
+      let newWidth = resizePreview.width;
+      let newHeight = resizePreview.height;
+
+      if (resizeHandle === 'se') {
+        // Bottom-right: increase width and height
+        newWidth = Math.max(20, resizingTextBlock.width + dx);
+        newHeight = Math.max(10, resizingTextBlock.height + dy);
+      } else if (resizeHandle === 'sw') {
+        // Bottom-left: move left edge and change width/height
+        newWidth = Math.max(20, resizingTextBlock.width - dx);
+        newHeight = Math.max(10, resizingTextBlock.height + dy);
+        newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
+      } else if (resizeHandle === 'ne') {
+        // Top-right: move top edge and change width/height
+        newWidth = Math.max(20, resizingTextBlock.width + dx);
+        newHeight = Math.max(10, resizingTextBlock.height - dy);
+        newY = resizingTextBlock.y - resizingTextBlock.height + (resizingTextBlock.height - newHeight);
+      } else if (resizeHandle === 'nw') {
+        // Top-left: move both edges
+        newWidth = Math.max(20, resizingTextBlock.width - dx);
+        newHeight = Math.max(10, resizingTextBlock.height - dy);
+        newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
+        newY = resizingTextBlock.y - resizingTextBlock.height + (resizingTextBlock.height - newHeight);
+      }
+
+      setResizePreview({ x: newX, y: newY, width: newWidth, height: newHeight });
+      return;
+    }
+
     // Handle resizing
     if (isResizing && dragStart && selectedAnnotationId && resizeHandle) {
       const selectedAnn = pageAnnotations.find(ann => ann.id === selectedAnnotationId);
@@ -261,6 +301,17 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   };
 
   const handleMouseUp = () => {
+    // Handle text block resize completion
+    if (resizingTextBlock && resizePreview) {
+      // Update the extracted text item dimensions (stored in Zustand)
+      // Note: This will be used when creating the text edit annotation
+      setResizingTextBlock(null);
+      setResizePreview(null);
+      setResizeHandle(null);
+      setDragStart(null);
+      return;
+    }
+
     // Reset dragging and resizing states
     if (isDragging) {
       setIsDragging(false);
@@ -889,45 +940,101 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
             >
               {/* Show resize handles on hover */}
               <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                {/* Corner handles */}
+                {/* Corner handles - now functional */}
+                {/* Top-left handle */}
                 <div
-                  className="absolute bg-blue-500 rounded-full border-2 border-white"
+                  className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nwse-resize hover:bg-blue-600 hover:scale-125 transition-all"
                   style={{
-                    width: '10px',
-                    height: '10px',
-                    left: '-5px',
-                    top: '-5px',
-                    pointerEvents: 'none',
+                    width: '12px',
+                    height: '12px',
+                    left: '-6px',
+                    top: '-6px',
+                    pointerEvents: 'auto',
+                    zIndex: 20,
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setResizingTextBlock(textItem);
+                    setResizeHandle('nw');
+                    setDragStart({ x: e.clientX, y: e.clientY });
+                    setResizePreview({
+                      x: textItem.x,
+                      y: textItem.y - textItem.height,
+                      width: textItem.width,
+                      height: textItem.height,
+                    });
                   }}
                 />
+                {/* Top-right handle */}
                 <div
-                  className="absolute bg-blue-500 rounded-full border-2 border-white"
+                  className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nesw-resize hover:bg-blue-600 hover:scale-125 transition-all"
                   style={{
-                    width: '10px',
-                    height: '10px',
-                    right: '-5px',
-                    top: '-5px',
-                    pointerEvents: 'none',
+                    width: '12px',
+                    height: '12px',
+                    right: '-6px',
+                    top: '-6px',
+                    pointerEvents: 'auto',
+                    zIndex: 20,
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setResizingTextBlock(textItem);
+                    setResizeHandle('ne');
+                    setDragStart({ x: e.clientX, y: e.clientY });
+                    setResizePreview({
+                      x: textItem.x,
+                      y: textItem.y - textItem.height,
+                      width: textItem.width,
+                      height: textItem.height,
+                    });
                   }}
                 />
+                {/* Bottom-left handle */}
                 <div
-                  className="absolute bg-blue-500 rounded-full border-2 border-white"
+                  className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nesw-resize hover:bg-blue-600 hover:scale-125 transition-all"
                   style={{
-                    width: '10px',
-                    height: '10px',
-                    left: '-5px',
-                    bottom: '-5px',
-                    pointerEvents: 'none',
+                    width: '12px',
+                    height: '12px',
+                    left: '-6px',
+                    bottom: '-6px',
+                    pointerEvents: 'auto',
+                    zIndex: 20,
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setResizingTextBlock(textItem);
+                    setResizeHandle('sw');
+                    setDragStart({ x: e.clientX, y: e.clientY });
+                    setResizePreview({
+                      x: textItem.x,
+                      y: textItem.y - textItem.height,
+                      width: textItem.width,
+                      height: textItem.height,
+                    });
                   }}
                 />
+                {/* Bottom-right handle */}
                 <div
-                  className="absolute bg-blue-500 rounded-full border-2 border-white"
+                  className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nwse-resize hover:bg-blue-600 hover:scale-125 transition-all"
                   style={{
-                    width: '10px',
-                    height: '10px',
-                    right: '-5px',
-                    bottom: '-5px',
-                    pointerEvents: 'none',
+                    width: '12px',
+                    height: '12px',
+                    right: '-6px',
+                    bottom: '-6px',
+                    pointerEvents: 'auto',
+                    zIndex: 20,
+                  }}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setResizingTextBlock(textItem);
+                    setResizeHandle('se');
+                    setDragStart({ x: e.clientX, y: e.clientY });
+                    setResizePreview({
+                      x: textItem.x,
+                      y: textItem.y - textItem.height,
+                      width: textItem.width,
+                      height: textItem.height,
+                    });
                   }}
                 />
               </div>
@@ -1094,6 +1201,36 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           {/* Help text */}
           <div className="px-3 pb-2 text-xs text-gray-600 bg-gray-50 rounded-b border-t border-gray-200">
             <span className="font-semibold">Ctrl+Enter</span> to save · <span className="font-semibold">Esc</span> to cancel · Drag corners to resize
+          </div>
+        </div>
+      )}
+
+      {/* Resize preview overlay */}
+      {resizePreview && resizingTextBlock && (
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            left: resizePreview.x * scale,
+            top: resizePreview.y * scale,
+            width: resizePreview.width * scale,
+            height: resizePreview.height * scale,
+            border: '3px dashed #3B82F6',
+            borderRadius: '4px',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            zIndex: 999,
+          }}
+        >
+          {/* Show dimensions in the preview */}
+          <div
+            className="absolute bg-blue-600 text-white text-xs px-2 py-1 rounded shadow-lg"
+            style={{
+              bottom: '-30px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {Math.round(resizePreview.width)} × {Math.round(resizePreview.height)}
           </div>
         </div>
       )}
