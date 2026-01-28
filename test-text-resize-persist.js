@@ -24,7 +24,12 @@ const path = require('path');
   await page.screenshot({ path: 'text-resize-persist-01-loaded.png' });
 
   console.log('Clicking Edit Text tool...');
-  const editTextButton = await page.$('button[aria-label="Edit Text"]');
+  const editTextButton = await page.$('button[aria-label="Edit Text tool"]');
+  if (!editTextButton) {
+    console.error('Edit Text tool button not found!');
+    await browser.close();
+    return;
+  }
   await editTextButton.click();
   await new Promise(resolve => setTimeout(resolve, 500));
   await page.screenshot({ path: 'text-resize-persist-02-edit-mode.png' });
