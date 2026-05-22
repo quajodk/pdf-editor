@@ -1,6 +1,14 @@
-import React, { useRef, useEffect, useState } from 'react';
-import { useEditorStore } from '../store/useEditorStore';
-import { Annotation, TextAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation, TextEditAnnotation, ExtractedTextItem } from '../types';
+import React, { useRef, useEffect, useState } from "react";
+import { useEditorStore } from "../store/useEditorStore";
+import {
+  Annotation,
+  TextAnnotation,
+  ShapeAnnotation,
+  HighlightAnnotation,
+  ImageAnnotation,
+  TextEditAnnotation,
+  ExtractedTextItem,
+} from "../types";
 
 interface PDFCanvasProps {
   pageNumber: number;
@@ -30,29 +38,53 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   } = useEditorStore();
 
   const [isDrawing, setIsDrawing] = useState(false);
-  const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>([]);
-  const [textInput, setTextInput] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [currentPath, setCurrentPath] = useState<{ x: number; y: number }[]>(
+    []
+  );
+  const [textInput, setTextInput] = useState<{
+    x: number;
+    y: number;
+    text: string;
+  } | null>(null);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
-  const [editingExtractedText, setEditingExtractedText] = useState<ExtractedTextItem | null>(null);
-  const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(null);
-  const [shapeEnd, setShapeEnd] = useState<{ x: number; y: number } | null>(null);
-  const [pendingImagePosition, setPendingImagePosition] = useState<{ x: number; y: number } | null>(null);
+  const [editingExtractedText, setEditingExtractedText] =
+    useState<ExtractedTextItem | null>(null);
+  const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [shapeEnd, setShapeEnd] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [pendingImagePosition, setPendingImagePosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   // For drag and resize
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
-  const [resizeHandle, setResizeHandle] = useState<'se' | 'sw' | 'ne' | 'nw' | null>(null);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [resizeHandle, setResizeHandle] = useState<
+    "se" | "sw" | "ne" | "nw" | null
+  >(null);
   const [eraserPath, setEraserPath] = useState<{ x: number; y: number }[]>([]);
 
   // For text block resizing
-  const [resizingTextBlock, setResizingTextBlock] = useState<ExtractedTextItem | null>(null);
-  const [resizePreview, setResizePreview] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [resizingTextBlock, setResizingTextBlock] =
+    useState<ExtractedTextItem | null>(null);
+  const [resizePreview, setResizePreview] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     // Skip if editText mode - clicking is handled by the overlay divs
-    if (currentTool === 'editText') {
+    if (currentTool === "editText") {
       return;
     }
 
@@ -62,26 +94,32 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    if (currentTool === 'text') {
-      setTextInput({ x, y, text: '' });
-    } else if (currentTool === 'image') {
+    if (currentTool === "text") {
+      setTextInput({ x, y, text: "" });
+    } else if (currentTool === "image") {
       setPendingImagePosition({ x, y });
       imageInputRef.current?.click();
-    } else if (currentTool === 'pen') {
+    } else if (currentTool === "pen") {
       setIsDrawing(true);
       setCurrentPath([{ x, y }]);
-    } else if (currentTool === 'eraser') {
+    } else if (currentTool === "eraser") {
       setIsDrawing(true);
       setEraserPath([{ x, y }]);
-    } else if (['rectangle', 'circle', 'line', 'arrow', 'highlight'].includes(currentTool)) {
+    } else if (
+      ["rectangle", "circle", "line", "arrow", "highlight"].includes(
+        currentTool
+      )
+    ) {
       setIsDrawing(true);
       setShapeStart({ x, y });
       setShapeEnd({ x, y });
-    } else if (currentTool === 'select') {
+    } else if (currentTool === "select") {
       // Check if clicking on a resize handle first
       if (selectedAnnotationId) {
-        const selectedAnn = pageAnnotations.find(ann => ann.id === selectedAnnotationId);
-        if (selectedAnn && selectedAnn.type === 'image') {
+        const selectedAnn = pageAnnotations.find(
+          (ann) => ann.id === selectedAnnotationId
+        );
+        if (selectedAnn && selectedAnn.type === "image") {
           const imgAnn = selectedAnn as ImageAnnotation;
           const handleSize = 8;
           const imgX = imgAnn.x;
@@ -90,32 +128,48 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           const imgH = imgAnn.height || 0;
 
           // Check each corner handle
-          if (x >= imgX + imgW - handleSize && x <= imgX + imgW + handleSize &&
-              y >= imgY + imgH - handleSize && y <= imgY + imgH + handleSize) {
+          if (
+            x >= imgX + imgW - handleSize &&
+            x <= imgX + imgW + handleSize &&
+            y >= imgY + imgH - handleSize &&
+            y <= imgY + imgH + handleSize
+          ) {
             // Bottom-right handle
             setIsResizing(true);
-            setResizeHandle('se');
+            setResizeHandle("se");
             setDragStart({ x, y });
             return;
-          } else if (x >= imgX - handleSize && x <= imgX + handleSize &&
-                     y >= imgY + imgH - handleSize && y <= imgY + imgH + handleSize) {
+          } else if (
+            x >= imgX - handleSize &&
+            x <= imgX + handleSize &&
+            y >= imgY + imgH - handleSize &&
+            y <= imgY + imgH + handleSize
+          ) {
             // Bottom-left handle
             setIsResizing(true);
-            setResizeHandle('sw');
+            setResizeHandle("sw");
             setDragStart({ x, y });
             return;
-          } else if (x >= imgX + imgW - handleSize && x <= imgX + imgW + handleSize &&
-                     y >= imgY - handleSize && y <= imgY + handleSize) {
+          } else if (
+            x >= imgX + imgW - handleSize &&
+            x <= imgX + imgW + handleSize &&
+            y >= imgY - handleSize &&
+            y <= imgY + handleSize
+          ) {
             // Top-right handle
             setIsResizing(true);
-            setResizeHandle('ne');
+            setResizeHandle("ne");
             setDragStart({ x, y });
             return;
-          } else if (x >= imgX - handleSize && x <= imgX + handleSize &&
-                     y >= imgY - handleSize && y <= imgY + handleSize) {
+          } else if (
+            x >= imgX - handleSize &&
+            x <= imgX + handleSize &&
+            y >= imgY - handleSize &&
+            y <= imgY + handleSize
+          ) {
             // Top-left handle
             setIsResizing(true);
-            setResizeHandle('nw');
+            setResizeHandle("nw");
             setDragStart({ x, y });
             return;
           }
@@ -124,19 +178,33 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
       // Find annotation at click position
       const clickedAnnotation = pageAnnotations.find((ann) => {
-        if (ann.type === 'text') {
+        if (ann.type === "text") {
           // Simple bounding box check for text
-          return x >= ann.x && x <= ann.x + 100 && y >= ann.y - 20 && y <= ann.y + 20;
-        } else if (ann.type === 'image') {
+          return (
+            x >= ann.x && x <= ann.x + 100 && y >= ann.y - 20 && y <= ann.y + 20
+          );
+        } else if (ann.type === "image") {
           // Bounding box check for images
-          return x >= ann.x && x <= ann.x + (ann.width || 0) &&
-                 y >= ann.y && y <= ann.y + (ann.height || 0);
-        } else if (ann.type === 'shape') {
-          return x >= ann.x && x <= ann.x + (ann.width || 0) &&
-                 y >= ann.y && y <= ann.y + (ann.height || 0);
-        } else if (ann.type === 'highlight') {
-          return x >= ann.x && x <= ann.x + (ann.width || 0) &&
-                 y >= ann.y && y <= ann.y + (ann.height || 0);
+          return (
+            x >= ann.x &&
+            x <= ann.x + (ann.width || 0) &&
+            y >= ann.y &&
+            y <= ann.y + (ann.height || 0)
+          );
+        } else if (ann.type === "shape") {
+          return (
+            x >= ann.x &&
+            x <= ann.x + (ann.width || 0) &&
+            y >= ann.y &&
+            y <= ann.y + (ann.height || 0)
+          );
+        } else if (ann.type === "highlight") {
+          return (
+            x >= ann.x &&
+            x <= ann.x + (ann.width || 0) &&
+            y >= ann.y &&
+            y <= ann.y + (ann.height || 0)
+          );
         }
         return false;
       });
@@ -169,17 +237,23 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
     // Find text annotation at click position and enable editing
     const clickedAnnotation = pageAnnotations.find((ann) => {
-      if (ann.type === 'text') {
+      if (ann.type === "text") {
         // Simple bounding box check for text
-        return x >= ann.x && x <= ann.x + 100 && y >= ann.y - 20 && y <= ann.y + 20;
+        return (
+          x >= ann.x && x <= ann.x + 100 && y >= ann.y - 20 && y <= ann.y + 20
+        );
       }
       return false;
     });
 
-    if (clickedAnnotation && clickedAnnotation.type === 'text') {
+    if (clickedAnnotation && clickedAnnotation.type === "text") {
       setEditingTextId(clickedAnnotation.id);
       const textAnn = clickedAnnotation as TextAnnotation;
-      setTextInput({ x: clickedAnnotation.x, y: clickedAnnotation.y, text: textAnn.data.text });
+      setTextInput({
+        x: clickedAnnotation.x,
+        y: clickedAnnotation.y,
+        text: textAnn.data.text,
+      });
     }
   };
 
@@ -200,36 +274,49 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       let newWidth = resizePreview.width;
       let newHeight = resizePreview.height;
 
-      if (resizeHandle === 'se') {
+      if (resizeHandle === "se") {
         // Bottom-right: increase width and height
         newWidth = Math.max(20, resizingTextBlock.width + dx);
         newHeight = Math.max(10, resizingTextBlock.height + dy);
-      } else if (resizeHandle === 'sw') {
+      } else if (resizeHandle === "sw") {
         // Bottom-left: move left edge and change width/height
         newWidth = Math.max(20, resizingTextBlock.width - dx);
         newHeight = Math.max(10, resizingTextBlock.height + dy);
         newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
-      } else if (resizeHandle === 'ne') {
+      } else if (resizeHandle === "ne") {
         // Top-right: move top edge and change width/height
         newWidth = Math.max(20, resizingTextBlock.width + dx);
         newHeight = Math.max(10, resizingTextBlock.height - dy);
-        newY = resizingTextBlock.y - resizingTextBlock.height + (resizingTextBlock.height - newHeight);
-      } else if (resizeHandle === 'nw') {
+        newY =
+          resizingTextBlock.y -
+          resizingTextBlock.height +
+          (resizingTextBlock.height - newHeight);
+      } else if (resizeHandle === "nw") {
         // Top-left: move both edges
         newWidth = Math.max(20, resizingTextBlock.width - dx);
         newHeight = Math.max(10, resizingTextBlock.height - dy);
         newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
-        newY = resizingTextBlock.y - resizingTextBlock.height + (resizingTextBlock.height - newHeight);
+        newY =
+          resizingTextBlock.y -
+          resizingTextBlock.height +
+          (resizingTextBlock.height - newHeight);
       }
 
-      setResizePreview({ x: newX, y: newY, width: newWidth, height: newHeight });
+      setResizePreview({
+        x: newX,
+        y: newY,
+        width: newWidth,
+        height: newHeight,
+      });
       return;
     }
 
     // Handle resizing
     if (isResizing && dragStart && selectedAnnotationId && resizeHandle) {
-      const selectedAnn = pageAnnotations.find(ann => ann.id === selectedAnnotationId);
-      if (selectedAnn && selectedAnn.type === 'image') {
+      const selectedAnn = pageAnnotations.find(
+        (ann) => ann.id === selectedAnnotationId
+      );
+      if (selectedAnn && selectedAnn.type === "image") {
         const imgAnn = selectedAnn as ImageAnnotation;
         const dx = x - dragStart.x;
 
@@ -239,23 +326,24 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         let newHeight = imgAnn.height || 0;
 
         // Calculate aspect ratio to maintain proportions
-        const aspectRatio = (imgAnn.data.originalWidth || 1) / (imgAnn.data.originalHeight || 1);
+        const aspectRatio =
+          (imgAnn.data.originalWidth || 1) / (imgAnn.data.originalHeight || 1);
 
-        if (resizeHandle === 'se') {
+        if (resizeHandle === "se") {
           // Bottom-right: increase width and height
           newWidth = Math.max(50, (imgAnn.width || 0) + dx);
           newHeight = newWidth / aspectRatio;
-        } else if (resizeHandle === 'sw') {
+        } else if (resizeHandle === "sw") {
           // Bottom-left: move left edge and increase width
           newWidth = Math.max(50, (imgAnn.width || 0) - dx);
           newHeight = newWidth / aspectRatio;
           newX = imgAnn.x + (imgAnn.width || 0) - newWidth;
-        } else if (resizeHandle === 'ne') {
+        } else if (resizeHandle === "ne") {
           // Top-right: move top edge and increase width
           newWidth = Math.max(50, (imgAnn.width || 0) + dx);
           newHeight = newWidth / aspectRatio;
           newY = imgAnn.y + (imgAnn.height || 0) - newHeight;
-        } else if (resizeHandle === 'nw') {
+        } else if (resizeHandle === "nw") {
           // Top-left: move both edges
           newWidth = Math.max(50, (imgAnn.width || 0) - dx);
           newHeight = newWidth / aspectRatio;
@@ -279,7 +367,9 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       const dx = x - dragStart.x;
       const dy = y - dragStart.y;
 
-      const selectedAnn = pageAnnotations.find(ann => ann.id === selectedAnnotationId);
+      const selectedAnn = pageAnnotations.find(
+        (ann) => ann.id === selectedAnnotationId
+      );
       if (selectedAnn) {
         updateAnnotation(selectedAnnotationId, {
           x: selectedAnn.x + dx,
@@ -292,11 +382,15 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
     if (!isDrawing) return;
 
-    if (currentTool === 'pen') {
+    if (currentTool === "pen") {
       setCurrentPath((prev) => [...prev, { x, y }]);
-    } else if (currentTool === 'eraser') {
+    } else if (currentTool === "eraser") {
       setEraserPath((prev) => [...prev, { x, y }]);
-    } else if (['rectangle', 'circle', 'line', 'arrow', 'highlight'].includes(currentTool)) {
+    } else if (
+      ["rectangle", "circle", "line", "arrow", "highlight"].includes(
+        currentTool
+      )
+    ) {
       setShapeEnd({ x, y });
     }
   };
@@ -336,10 +430,10 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
     if (!isDrawing) return;
 
-    if (currentTool === 'pen' && currentPath.length > 0) {
+    if (currentTool === "pen" && currentPath.length > 0) {
       const annotation: Annotation = {
         id: Date.now().toString(),
-        type: 'drawing',
+        type: "drawing",
         pageNumber,
         x: currentPath[0].x,
         y: currentPath[0].y,
@@ -351,19 +445,20 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       };
       addAnnotation(annotation);
       setCurrentPath([]);
-    } else if (currentTool === 'eraser' && eraserPath.length > 0) {
+    } else if (currentTool === "eraser" && eraserPath.length > 0) {
       // Find and delete drawings that intersect with eraser path
       const eraserThreshold = 10; // Distance threshold for erasing
       pageAnnotations.forEach((ann) => {
-        if (ann.type === 'drawing') {
+        if (ann.type === "drawing") {
           // Check if any point in the drawing paths intersects with eraser path
           const shouldErase = ann.data.paths.some((path: any) =>
             path.some((point: any) =>
-              eraserPath.some((eraserPoint) =>
-                Math.sqrt(
-                  Math.pow(point.x - eraserPoint.x, 2) +
-                  Math.pow(point.y - eraserPoint.y, 2)
-                ) <= eraserThreshold
+              eraserPath.some(
+                (eraserPoint) =>
+                  Math.sqrt(
+                    Math.pow(point.x - eraserPoint.x, 2) +
+                      Math.pow(point.y - eraserPoint.y, 2)
+                  ) <= eraserThreshold
               )
             )
           );
@@ -373,20 +468,24 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         }
       });
       setEraserPath([]);
-    } else if (['rectangle', 'circle', 'line', 'arrow'].includes(currentTool) && shapeStart && shapeEnd) {
+    } else if (
+      ["rectangle", "circle", "line", "arrow"].includes(currentTool) &&
+      shapeStart &&
+      shapeEnd
+    ) {
       const annotation: ShapeAnnotation = {
         id: Date.now().toString(),
-        type: 'shape',
+        type: "shape",
         pageNumber,
         x: shapeStart.x,
         y: shapeStart.y,
         width: Math.abs(shapeEnd.x - shapeStart.x),
         height: Math.abs(shapeEnd.y - shapeStart.y),
         data: {
-          shapeType: currentTool as 'rectangle' | 'circle' | 'line' | 'arrow',
+          shapeType: currentTool as "rectangle" | "circle" | "line" | "arrow",
           strokeColor: penColor,
           strokeWidth: penWidth,
-          fillColor: 'transparent',
+          fillColor: "transparent",
           endX: shapeEnd.x,
           endY: shapeEnd.y,
         },
@@ -394,10 +493,10 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       addAnnotation(annotation);
       setShapeStart(null);
       setShapeEnd(null);
-    } else if (currentTool === 'highlight' && shapeStart && shapeEnd) {
+    } else if (currentTool === "highlight" && shapeStart && shapeEnd) {
       const annotation: HighlightAnnotation = {
         id: Date.now().toString(),
-        type: 'highlight',
+        type: "highlight",
         pageNumber,
         x: Math.min(shapeStart.x, shapeEnd.x),
         y: Math.min(shapeStart.y, shapeEnd.y),
@@ -421,8 +520,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     if (!file || !pendingImagePosition) return;
 
     // Check if file is an image
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
+    if (!file.type.startsWith("image/")) {
+      alert("Please select an image file");
       return;
     }
 
@@ -432,12 +531,13 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       img.onload = () => {
         const annotation: ImageAnnotation = {
           id: Date.now().toString(),
-          type: 'image',
+          type: "image",
           pageNumber,
           x: pendingImagePosition.x,
           y: pendingImagePosition.y,
           width: img.width > 300 ? 300 : img.width, // Default max width 300px
-          height: img.height > 300 ? (300 / img.width) * img.height : img.height,
+          height:
+            img.height > 300 ? (300 / img.width) * img.height : img.height,
           data: {
             src: event.target?.result as string,
             originalWidth: img.width,
@@ -453,7 +553,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
     // Reset file input
     if (imageInputRef.current) {
-      imageInputRef.current.value = '';
+      imageInputRef.current.value = "";
     }
   };
 
@@ -463,7 +563,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         // Update existing annotation
         updateAnnotation(editingTextId, {
           data: {
-            ...annotations.find(a => a.id === editingTextId)?.data,
+            ...annotations.find((a) => a.id === editingTextId)?.data,
             text: textInput.text,
           },
         });
@@ -472,7 +572,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         // Add new annotation
         const annotation: TextAnnotation = {
           id: Date.now().toString(),
-          type: 'text',
+          type: "text",
           pageNumber,
           x: textInput.x,
           y: textInput.y,
@@ -493,18 +593,26 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     if (editingExtractedText && newText.trim()) {
       // Calculate approximate width and height based on text length
       // Use a rough estimate: average character width is ~60% of fontSize
+      const lines = newText.split("\n");
+      const maxLineLength = Math.max(...lines.map((line) => line.length));
       const charWidth = editingExtractedText.fontSize * 0.6;
-      const estimatedWidth = Math.max(editingExtractedText.width, newText.length * charWidth);
+      const estimatedWidth = Math.max(
+        editingExtractedText.width,
+        maxLineLength * charWidth
+      );
 
       // For multi-line text, calculate height based on line breaks
-      const lines = newText.split('\n');
       const lineHeight = editingExtractedText.fontSize * 1.2; // 1.2 line height multiplier
-      const estimatedHeight = Math.max(editingExtractedText.height, lines.length * lineHeight);
+      const estimatedHeight = Math.max(
+        editingExtractedText.height,
+        lines.length * lineHeight
+      );
 
-      // Create a text edit annotation
+      // Create a text edit annotation with the original text ID for proper replacement
+      // Preserve the original text alignment and page width for proper formatting
       const annotation: TextEditAnnotation = {
         id: Date.now().toString(),
-        type: 'textEdit',
+        type: "textEdit",
         pageNumber,
         x: editingExtractedText.x,
         y: editingExtractedText.y,
@@ -515,7 +623,12 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           newText: newText,
           fontSize: editingExtractedText.fontSize,
           fontFamily: editingExtractedText.fontFamily,
-          color: '#000000',
+          color: "#000000",
+          originalTextId: editingExtractedText.id, // Link to original text block for proper replacement
+          textAlign: editingExtractedText.textAlign || 'left', // Preserve original alignment
+          pageWidth: editingExtractedText.pageWidth, // Preserve page width for alignment calculation
+          lineHeight: editingExtractedText.lineHeight,
+          firstBaselineY: editingExtractedText.firstBaselineY,
         },
       };
       addAnnotation(annotation);
@@ -526,15 +639,15 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   // Handle keyboard shortcuts for delete
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
+      if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedAnnotationIds.length > 0) {
           deleteSelectedAnnotations();
         }
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedAnnotationIds, deleteSelectedAnnotations]);
 
   // Handle global mouse events when resizing text blocks
@@ -542,7 +655,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     if (!resizingTextBlock) return;
 
     const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (!canvasRef.current || !dragStart || !resizeHandle || !resizePreview) return;
+      if (!canvasRef.current || !dragStart || !resizeHandle || !resizePreview)
+        return;
 
       const rect = canvasRef.current.getBoundingClientRect();
       const dx = (e.clientX - dragStart.x) / scale;
@@ -553,25 +667,36 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       let newWidth = resizePreview.width;
       let newHeight = resizePreview.height;
 
-      if (resizeHandle === 'se') {
+      if (resizeHandle === "se") {
         newWidth = Math.max(20, resizingTextBlock.width + dx);
         newHeight = Math.max(10, resizingTextBlock.height + dy);
-      } else if (resizeHandle === 'sw') {
+      } else if (resizeHandle === "sw") {
         newWidth = Math.max(20, resizingTextBlock.width - dx);
         newHeight = Math.max(10, resizingTextBlock.height + dy);
         newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
-      } else if (resizeHandle === 'ne') {
+      } else if (resizeHandle === "ne") {
         newWidth = Math.max(20, resizingTextBlock.width + dx);
         newHeight = Math.max(10, resizingTextBlock.height - dy);
-        newY = resizingTextBlock.y - resizingTextBlock.height + (resizingTextBlock.height - newHeight);
-      } else if (resizeHandle === 'nw') {
+        newY =
+          resizingTextBlock.y -
+          resizingTextBlock.height +
+          (resizingTextBlock.height - newHeight);
+      } else if (resizeHandle === "nw") {
         newWidth = Math.max(20, resizingTextBlock.width - dx);
         newHeight = Math.max(10, resizingTextBlock.height - dy);
         newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
-        newY = resizingTextBlock.y - resizingTextBlock.height + (resizingTextBlock.height - newHeight);
+        newY =
+          resizingTextBlock.y -
+          resizingTextBlock.height +
+          (resizingTextBlock.height - newHeight);
       }
 
-      setResizePreview({ x: newX, y: newY, width: newWidth, height: newHeight });
+      setResizePreview({
+        x: newX,
+        y: newY,
+        width: newWidth,
+        height: newHeight,
+      });
     };
 
     const handleGlobalMouseUp = () => {
@@ -590,16 +715,25 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       setDragStart(null);
     };
 
-    window.addEventListener('mousemove', handleGlobalMouseMove);
-    window.addEventListener('mouseup', handleGlobalMouseUp);
+    window.addEventListener("mousemove", handleGlobalMouseMove);
+    window.addEventListener("mouseup", handleGlobalMouseUp);
 
     return () => {
-      window.removeEventListener('mousemove', handleGlobalMouseMove);
-      window.removeEventListener('mouseup', handleGlobalMouseUp);
+      window.removeEventListener("mousemove", handleGlobalMouseMove);
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
     };
-  }, [resizingTextBlock, dragStart, resizeHandle, resizePreview, scale, updateExtractedTextItem]);
+  }, [
+    resizingTextBlock,
+    dragStart,
+    resizeHandle,
+    resizePreview,
+    scale,
+    updateExtractedTextItem,
+  ]);
 
-  const pageAnnotations = annotations.filter((ann) => ann.pageNumber === pageNumber);
+  const pageAnnotations = annotations.filter(
+    (ann) => ann.pageNumber === pageNumber
+  );
 
   return (
     <>
@@ -611,13 +745,16 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onDoubleClick={handleDoubleClick}
-        style={{ pointerEvents: 'auto', cursor: currentTool === 'select' ? 'default' : 'crosshair' }}
+        style={{
+          pointerEvents: "auto",
+          cursor: currentTool === "select" ? "default" : "crosshair",
+        }}
       >
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
           {/* Render current drawing path */}
           {currentPath.length > 0 && (
             <path
-              d={`M ${currentPath.map((p) => `${p.x},${p.y}`).join(' L ')}`}
+              d={`M ${currentPath.map((p) => `${p.x},${p.y}`).join(" L ")}`}
               stroke={penColor}
               strokeWidth={penWidth}
               fill="none"
@@ -629,7 +766,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           {/* Render eraser path (visual feedback) */}
           {eraserPath.length > 0 && (
             <path
-              d={`M ${eraserPath.map((p) => `${p.x},${p.y}`).join(' L ')}`}
+              d={`M ${eraserPath.map((p) => `${p.x},${p.y}`).join(" L ")}`}
               stroke="#FF0000"
               strokeWidth={15}
               fill="none"
@@ -642,7 +779,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           {/* Render current shape being drawn */}
           {shapeStart && shapeEnd && (
             <>
-              {currentTool === 'rectangle' && (
+              {currentTool === "rectangle" && (
                 <rect
                   x={Math.min(shapeStart.x, shapeEnd.x)}
                   y={Math.min(shapeStart.y, shapeEnd.y)}
@@ -653,7 +790,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   fill="none"
                 />
               )}
-              {currentTool === 'circle' && (
+              {currentTool === "circle" && (
                 <ellipse
                   cx={shapeStart.x + (shapeEnd.x - shapeStart.x) / 2}
                   cy={shapeStart.y + (shapeEnd.y - shapeStart.y) / 2}
@@ -664,7 +801,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   fill="none"
                 />
               )}
-              {currentTool === 'line' && (
+              {currentTool === "line" && (
                 <line
                   x1={shapeStart.x}
                   y1={shapeStart.y}
@@ -674,7 +811,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   strokeWidth={penWidth}
                 />
               )}
-              {currentTool === 'arrow' && (
+              {currentTool === "arrow" && (
                 <g>
                   <line
                     x1={shapeStart.x}
@@ -686,13 +823,22 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   />
                   {/* Arrow head */}
                   <polygon
-                    points={`${shapeEnd.x},${shapeEnd.y} ${shapeEnd.x - 10},${shapeEnd.y - 5} ${shapeEnd.x - 10},${shapeEnd.y + 5}`}
+                    points={`${shapeEnd.x},${shapeEnd.y} ${shapeEnd.x - 10},${
+                      shapeEnd.y - 5
+                    } ${shapeEnd.x - 10},${shapeEnd.y + 5}`}
                     fill={penColor}
-                    transform={`rotate(${Math.atan2(shapeEnd.y - shapeStart.y, shapeEnd.x - shapeStart.x) * 180 / Math.PI} ${shapeEnd.x} ${shapeEnd.y})`}
+                    transform={`rotate(${
+                      (Math.atan2(
+                        shapeEnd.y - shapeStart.y,
+                        shapeEnd.x - shapeStart.x
+                      ) *
+                        180) /
+                      Math.PI
+                    } ${shapeEnd.x} ${shapeEnd.y})`}
                   />
                 </g>
               )}
-              {currentTool === 'highlight' && (
+              {currentTool === "highlight" && (
                 <rect
                   x={Math.min(shapeStart.x, shapeEnd.x)}
                   y={Math.min(shapeStart.y, shapeEnd.y)}
@@ -707,11 +853,11 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
           {/* Render saved annotations */}
           {pageAnnotations.map((annotation) => {
-            if (annotation.type === 'drawing') {
+            if (annotation.type === "drawing") {
               return annotation.data.paths.map((path: any, idx: number) => (
                 <path
                   key={`${annotation.id}-${idx}`}
-                  d={`M ${path.map((p: any) => `${p.x},${p.y}`).join(' L ')}`}
+                  d={`M ${path.map((p: any) => `${p.x},${p.y}`).join(" L ")}`}
                   stroke={annotation.data.color}
                   strokeWidth={annotation.data.width}
                   fill="none"
@@ -719,10 +865,10 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   strokeLinejoin="round"
                 />
               ));
-            } else if (annotation.type === 'shape') {
+            } else if (annotation.type === "shape") {
               const shape = annotation as ShapeAnnotation;
               const isSelected = selectedAnnotationIds.includes(annotation.id);
-              if (shape.data.shapeType === 'rectangle') {
+              if (shape.data.shapeType === "rectangle") {
                 return (
                   <g key={annotation.id}>
                     <rect
@@ -732,7 +878,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                       height={annotation.height}
                       stroke={shape.data.strokeColor}
                       strokeWidth={shape.data.strokeWidth}
-                      fill={shape.data.fillColor || 'none'}
+                      fill={shape.data.fillColor || "none"}
                     />
                     {isSelected && (
                       <rect
@@ -748,7 +894,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                     )}
                   </g>
                 );
-              } else if (shape.data.shapeType === 'circle') {
+              } else if (shape.data.shapeType === "circle") {
                 return (
                   <g key={annotation.id}>
                     <ellipse
@@ -758,7 +904,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                       ry={(annotation.height || 0) / 2}
                       stroke={shape.data.strokeColor}
                       strokeWidth={shape.data.strokeWidth}
-                      fill={shape.data.fillColor || 'none'}
+                      fill={shape.data.fillColor || "none"}
                     />
                     {isSelected && (
                       <rect
@@ -774,7 +920,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                     )}
                   </g>
                 );
-              } else if (shape.data.shapeType === 'line') {
+              } else if (shape.data.shapeType === "line") {
                 return (
                   <g key={annotation.id}>
                     <line
@@ -798,11 +944,14 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                     )}
                   </g>
                 );
-              } else if (shape.data.shapeType === 'arrow') {
-                const angle = Math.atan2(
-                  (shape.data.endY || 0) - annotation.y,
-                  (shape.data.endX || 0) - annotation.x
-                ) * 180 / Math.PI;
+              } else if (shape.data.shapeType === "arrow") {
+                const angle =
+                  (Math.atan2(
+                    (shape.data.endY || 0) - annotation.y,
+                    (shape.data.endX || 0) - annotation.x
+                  ) *
+                    180) /
+                  Math.PI;
                 return (
                   <g key={annotation.id}>
                     {isSelected && (
@@ -825,14 +974,18 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                       strokeWidth={shape.data.strokeWidth}
                     />
                     <polygon
-                      points={`${shape.data.endX},${shape.data.endY} ${(shape.data.endX || 0) - 10},${(shape.data.endY || 0) - 5} ${(shape.data.endX || 0) - 10},${(shape.data.endY || 0) + 5}`}
+                      points={`${shape.data.endX},${shape.data.endY} ${
+                        (shape.data.endX || 0) - 10
+                      },${(shape.data.endY || 0) - 5} ${
+                        (shape.data.endX || 0) - 10
+                      },${(shape.data.endY || 0) + 5}`}
                       fill={shape.data.strokeColor}
                       transform={`rotate(${angle} ${shape.data.endX} ${shape.data.endY})`}
                     />
                   </g>
                 );
               }
-            } else if (annotation.type === 'highlight') {
+            } else if (annotation.type === "highlight") {
               const highlight = annotation as HighlightAnnotation;
               const isSelected = selectedAnnotationIds.includes(annotation.id);
               return (
@@ -866,7 +1019,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
         {/* Render text annotations */}
         {pageAnnotations.map((annotation) => {
-          if (annotation.type === 'text' && annotation.id !== editingTextId) {
+          if (annotation.type === "text" && annotation.id !== editingTextId) {
             const textAnn = annotation as TextAnnotation;
             const isSelected = selectedAnnotationIds.includes(annotation.id);
             return (
@@ -879,12 +1032,12 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   fontSize: textAnn.data.fontSize,
                   fontFamily: textAnn.data.fontFamily,
                   color: textAnn.data.color,
-                  fontWeight: textAnn.data.bold ? 'bold' : 'normal',
-                  fontStyle: textAnn.data.italic ? 'italic' : 'normal',
-                  textDecoration: textAnn.data.underline ? 'underline' : 'none',
-                  pointerEvents: 'none',
-                  border: isSelected ? '2px dashed #3B82F6' : 'none',
-                  padding: isSelected ? '2px' : '0',
+                  fontWeight: textAnn.data.bold ? "bold" : "normal",
+                  fontStyle: textAnn.data.italic ? "italic" : "normal",
+                  textDecoration: textAnn.data.underline ? "underline" : "none",
+                  pointerEvents: "none",
+                  border: isSelected ? "2px dashed #3B82F6" : "none",
+                  padding: isSelected ? "2px" : "0",
                 }}
               >
                 {textAnn.data.text}
@@ -896,7 +1049,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
         {/* Render image annotations */}
         {pageAnnotations.map((annotation) => {
-          if (annotation.type === 'image') {
+          if (annotation.type === "image") {
             const imgAnn = annotation as ImageAnnotation;
             const isSelected = selectedAnnotationIds.includes(annotation.id);
             return (
@@ -910,7 +1063,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                     top: annotation.y,
                     width: annotation.width,
                     height: annotation.height,
-                    border: isSelected ? '2px solid #3B82F6' : 'none',
+                    border: isSelected ? "2px solid #3B82F6" : "none",
                   }}
                 />
                 {/* Resize handles for selected image */}
@@ -924,8 +1077,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                         top: annotation.y - 4,
                         width: 8,
                         height: 8,
-                        cursor: 'nw-resize',
-                        pointerEvents: 'none',
+                        cursor: "nw-resize",
+                        pointerEvents: "none",
                       }}
                     />
                     {/* Top-right handle */}
@@ -936,8 +1089,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                         top: annotation.y - 4,
                         width: 8,
                         height: 8,
-                        cursor: 'ne-resize',
-                        pointerEvents: 'none',
+                        cursor: "ne-resize",
+                        pointerEvents: "none",
                       }}
                     />
                     {/* Bottom-left handle */}
@@ -948,8 +1101,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                         top: annotation.y + (annotation.height || 0) - 4,
                         width: 8,
                         height: 8,
-                        cursor: 'sw-resize',
-                        pointerEvents: 'none',
+                        cursor: "sw-resize",
+                        pointerEvents: "none",
                       }}
                     />
                     {/* Bottom-right handle */}
@@ -960,8 +1113,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                         top: annotation.y + (annotation.height || 0) - 4,
                         width: 8,
                         height: 8,
-                        cursor: 'se-resize',
-                        pointerEvents: 'none',
+                        cursor: "se-resize",
+                        pointerEvents: "none",
                       }}
                     />
                   </>
@@ -974,167 +1127,179 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       </div>
 
       {/* Render extracted text with dotted borders in editText mode */}
-      {currentTool === 'editText' && extractedText
-        .filter(t => t.pageNumber === pageNumber)
-        .map((textItem) => {
-          // Check if this text has been edited
-          const editAnnotation = pageAnnotations.find(
-            ann => ann.type === 'textEdit' &&
-            Math.abs(ann.x - textItem.x) < 5 &&
-            Math.abs(ann.y - textItem.y) < 5
-          ) as TextEditAnnotation | undefined;
+      {currentTool === "editText" &&
+        extractedText
+          .filter((t) => t.pageNumber === pageNumber)
+          .map((textItem) => {
+            // Check if this text has been edited by matching the originalTextId
+            const editAnnotation = pageAnnotations.find(
+              (ann) =>
+                ann.type === "textEdit" &&
+                (ann as TextEditAnnotation).data.originalTextId === textItem.id
+            ) as TextEditAnnotation | undefined;
 
-          // Don't show original text if it has been edited
-          if (editAnnotation) return null;
+            // Don't show original text if it has been edited - the edited version replaces it
+            if (editAnnotation) return null;
 
-          return (
-            <div
-              key={textItem.id}
-              className="absolute cursor-pointer hover:bg-blue-50 hover:bg-opacity-20 transition-colors group"
-              style={{
-                left: textItem.x * scale,
-                top: (textItem.y - textItem.height) * scale,
-                width: textItem.width * scale,
-                height: textItem.height * scale,
-                pointerEvents: 'auto',
-                zIndex: 10,
-                border: '2px dashed #3B82F6',
-                borderRadius: '2px',
-                boxSizing: 'border-box',
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditingExtractedText(textItem);
-              }}
-              title="Click to edit this text"
-            >
-              {/* Show resize handles on hover */}
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                {/* Corner handles - now functional */}
-                {/* Top-left handle */}
-                <div
-                  className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nwse-resize hover:bg-blue-600 hover:scale-125 transition-all"
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    left: '-6px',
-                    top: '-6px',
-                    pointerEvents: 'auto',
-                    zIndex: 20,
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setResizingTextBlock(textItem);
-                    setResizeHandle('nw');
-                    setDragStart({ x: e.clientX, y: e.clientY });
-                    setResizePreview({
-                      x: textItem.x,
-                      y: textItem.y - textItem.height,
-                      width: textItem.width,
-                      height: textItem.height,
-                    });
-                  }}
-                />
-                {/* Top-right handle */}
-                <div
-                  className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nesw-resize hover:bg-blue-600 hover:scale-125 transition-all"
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    right: '-6px',
-                    top: '-6px',
-                    pointerEvents: 'auto',
-                    zIndex: 20,
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setResizingTextBlock(textItem);
-                    setResizeHandle('ne');
-                    setDragStart({ x: e.clientX, y: e.clientY });
-                    setResizePreview({
-                      x: textItem.x,
-                      y: textItem.y - textItem.height,
-                      width: textItem.width,
-                      height: textItem.height,
-                    });
-                  }}
-                />
-                {/* Bottom-left handle */}
-                <div
-                  className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nesw-resize hover:bg-blue-600 hover:scale-125 transition-all"
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    left: '-6px',
-                    bottom: '-6px',
-                    pointerEvents: 'auto',
-                    zIndex: 20,
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setResizingTextBlock(textItem);
-                    setResizeHandle('sw');
-                    setDragStart({ x: e.clientX, y: e.clientY });
-                    setResizePreview({
-                      x: textItem.x,
-                      y: textItem.y - textItem.height,
-                      width: textItem.width,
-                      height: textItem.height,
-                    });
-                  }}
-                />
-                {/* Bottom-right handle */}
-                <div
-                  className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nwse-resize hover:bg-blue-600 hover:scale-125 transition-all"
-                  style={{
-                    width: '12px',
-                    height: '12px',
-                    right: '-6px',
-                    bottom: '-6px',
-                    pointerEvents: 'auto',
-                    zIndex: 20,
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setResizingTextBlock(textItem);
-                    setResizeHandle('se');
-                    setDragStart({ x: e.clientX, y: e.clientY });
-                    setResizePreview({
-                      x: textItem.x,
-                      y: textItem.y - textItem.height,
-                      width: textItem.width,
-                      height: textItem.height,
-                    });
-                  }}
-                />
+            return (
+              <div
+                key={textItem.id}
+                className="absolute cursor-pointer hover:bg-blue-50 hover:bg-opacity-20 transition-colors group"
+                style={{
+                  left: textItem.x * scale,
+                  top: (textItem.y - textItem.height) * scale,
+                  width: textItem.width * scale,
+                  height: textItem.height * scale,
+                  pointerEvents: "auto",
+                  zIndex: 10,
+                  border: "2px dashed #3B82F6",
+                  borderRadius: "2px",
+                  boxSizing: "border-box",
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingExtractedText(textItem);
+                }}
+                title="Click to edit this text"
+              >
+                {/* Show resize handles on hover */}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  {/* Corner handles - now functional */}
+                  {/* Top-left handle */}
+                  <div
+                    className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nwse-resize hover:bg-blue-600 hover:scale-125 transition-all"
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      left: "-6px",
+                      top: "-6px",
+                      pointerEvents: "auto",
+                      zIndex: 20,
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setResizingTextBlock(textItem);
+                      setResizeHandle("nw");
+                      setDragStart({ x: e.clientX, y: e.clientY });
+                      setResizePreview({
+                        x: textItem.x,
+                        y: textItem.y - textItem.height,
+                        width: textItem.width,
+                        height: textItem.height,
+                      });
+                    }}
+                  />
+                  {/* Top-right handle */}
+                  <div
+                    className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nesw-resize hover:bg-blue-600 hover:scale-125 transition-all"
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      right: "-6px",
+                      top: "-6px",
+                      pointerEvents: "auto",
+                      zIndex: 20,
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setResizingTextBlock(textItem);
+                      setResizeHandle("ne");
+                      setDragStart({ x: e.clientX, y: e.clientY });
+                      setResizePreview({
+                        x: textItem.x,
+                        y: textItem.y - textItem.height,
+                        width: textItem.width,
+                        height: textItem.height,
+                      });
+                    }}
+                  />
+                  {/* Bottom-left handle */}
+                  <div
+                    className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nesw-resize hover:bg-blue-600 hover:scale-125 transition-all"
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      left: "-6px",
+                      bottom: "-6px",
+                      pointerEvents: "auto",
+                      zIndex: 20,
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setResizingTextBlock(textItem);
+                      setResizeHandle("sw");
+                      setDragStart({ x: e.clientX, y: e.clientY });
+                      setResizePreview({
+                        x: textItem.x,
+                        y: textItem.y - textItem.height,
+                        width: textItem.width,
+                        height: textItem.height,
+                      });
+                    }}
+                  />
+                  {/* Bottom-right handle */}
+                  <div
+                    className="absolute bg-blue-500 rounded-full border-2 border-white cursor-nwse-resize hover:bg-blue-600 hover:scale-125 transition-all"
+                    style={{
+                      width: "12px",
+                      height: "12px",
+                      right: "-6px",
+                      bottom: "-6px",
+                      pointerEvents: "auto",
+                      zIndex: 20,
+                    }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      setResizingTextBlock(textItem);
+                      setResizeHandle("se");
+                      setDragStart({ x: e.clientX, y: e.clientY });
+                      setResizePreview({
+                        x: textItem.x,
+                        y: textItem.y - textItem.height,
+                        width: textItem.width,
+                        height: textItem.height,
+                      });
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
       {/* Render text edit annotations with dotted border when in edit mode */}
       {pageAnnotations.map((annotation) => {
-        if (annotation.type === 'textEdit') {
+        if (annotation.type === "textEdit") {
           const textEdit = annotation as TextEditAnnotation;
-          const showBorder = currentTool === 'editText';
+          const showBorder = currentTool === "editText";
+          const textAlign = textEdit.data.textAlign || 'left';
+          
+          // Calculate proper width to cover the original text area
+          // Use the original width plus some padding to ensure full coverage
+          const coverWidth = Math.max(annotation.width! + 10, annotation.width! * 1.1);
+          const coverHeight = Math.max(annotation.height! + 4, annotation.height! * 1.1);
+          
           return (
             <div
               key={annotation.id}
-              className="absolute bg-white px-1"
+              className="absolute"
               style={{
-                left: annotation.x * scale,
-                top: (annotation.y - annotation.height!) * scale,
+                left: (annotation.x - 5) * scale,
+                top: (annotation.y - annotation.height! - 2) * scale,
+                width: coverWidth * scale,
+                minHeight: coverHeight * scale,
+                backgroundColor: 'white',
                 fontSize: textEdit.data.fontSize * scale,
                 fontFamily: textEdit.data.fontFamily,
                 color: textEdit.data.color,
-                pointerEvents: 'none',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-                maxWidth: `${annotation.width! * scale}px`,
-                lineHeight: '1.2',
-                border: showBorder ? '2px dashed #10B981' : 'none',
-                borderRadius: '2px',
-                padding: showBorder ? '4px' : '2px',
+                pointerEvents: showBorder ? "auto" : "none",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                lineHeight: "1.2",
+                border: showBorder ? "2px dashed #10B981" : "none",
+                borderRadius: "2px",
+                padding: "2px 5px",
+                textAlign: textAlign,
+                zIndex: 5, // Ensure it's above the PDF text layer
               }}
             >
               {textEdit.data.newText}
@@ -1150,7 +1315,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         type="file"
         accept="image/*"
         onChange={handleImageUpload}
-        style={{ display: 'none' }}
+        style={{ display: "none" }}
       />
 
       {/* Text input overlay */}
@@ -1167,11 +1332,13 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
             type="text"
             autoFocus
             value={textInput.text}
-            onChange={(e) => setTextInput({ ...textInput, text: e.target.value })}
+            onChange={(e) =>
+              setTextInput({ ...textInput, text: e.target.value })
+            }
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              if (e.key === "Enter") {
                 handleTextSubmit();
-              } else if (e.key === 'Escape') {
+              } else if (e.key === "Escape") {
                 setTextInput(null);
                 setEditingTextId(null);
               }
@@ -1182,7 +1349,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               fontSize,
               fontFamily,
               color: fontColor,
-              minWidth: '200px',
+              minWidth: "200px",
             }}
             placeholder="Type text..."
           />
@@ -1197,8 +1364,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
             left: editingExtractedText.x * scale,
             top: (editingExtractedText.y - editingExtractedText.height) * scale,
             zIndex: 1000,
-            border: '2px dashed #3B82F6',
-            borderRadius: '4px',
+            border: "2px dashed #3B82F6",
+            borderRadius: "4px",
             minWidth: `${editingExtractedText.width * scale}px`,
           }}
         >
@@ -1208,9 +1375,9 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               autoFocus
               defaultValue={editingExtractedText.text}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && e.ctrlKey) {
+                if (e.key === "Enter" && e.ctrlKey) {
                   handleExtractedTextSubmit(e.currentTarget.value);
-                } else if (e.key === 'Escape') {
+                } else if (e.key === "Escape") {
                   setEditingExtractedText(null);
                 }
               }}
@@ -1219,58 +1386,63 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               style={{
                 fontSize: editingExtractedText.fontSize * scale,
                 fontFamily: editingExtractedText.fontFamily,
-                color: '#000000',
+                color: "#000000",
                 minWidth: `${editingExtractedText.width * scale}px`,
-                minHeight: `${editingExtractedText.height * scale}px`,
-                lineHeight: '1.2',
+                minHeight: `${Math.max(editingExtractedText.height * scale, 60)}px`,
+                lineHeight: "1.2",
               }}
-              rows={Math.max(3, Math.ceil(editingExtractedText.text.length / 50))}
+              rows={Math.max(
+                3,
+                editingExtractedText.text.split("\n").length + 1
+              )}
             />
             {/* Corner resize handles */}
             <div
               className="absolute bg-blue-500 rounded-full border-2 border-white"
               style={{
-                width: '12px',
-                height: '12px',
-                left: '-6px',
-                top: '-6px',
-                pointerEvents: 'none',
+                width: "12px",
+                height: "12px",
+                left: "-6px",
+                top: "-6px",
+                pointerEvents: "none",
               }}
             />
             <div
               className="absolute bg-blue-500 rounded-full border-2 border-white"
               style={{
-                width: '12px',
-                height: '12px',
-                right: '-6px',
-                top: '-6px',
-                pointerEvents: 'none',
+                width: "12px",
+                height: "12px",
+                right: "-6px",
+                top: "-6px",
+                pointerEvents: "none",
               }}
             />
             <div
               className="absolute bg-blue-500 rounded-full border-2 border-white"
               style={{
-                width: '12px',
-                height: '12px',
-                left: '-6px',
-                bottom: '-6px',
-                pointerEvents: 'none',
+                width: "12px",
+                height: "12px",
+                left: "-6px",
+                bottom: "-6px",
+                pointerEvents: "none",
               }}
             />
             <div
               className="absolute bg-blue-500 rounded-full border-2 border-white"
               style={{
-                width: '12px',
-                height: '12px',
-                right: '-6px',
-                bottom: '-6px',
-                pointerEvents: 'none',
+                width: "12px",
+                height: "12px",
+                right: "-6px",
+                bottom: "-6px",
+                pointerEvents: "none",
               }}
             />
           </div>
           {/* Help text */}
           <div className="px-3 pb-2 text-xs text-gray-600 bg-gray-50 rounded-b border-t border-gray-200">
-            <span className="font-semibold">Ctrl+Enter</span> to save · <span className="font-semibold">Esc</span> to cancel · Drag corners to resize
+            <span className="font-semibold">Ctrl+Enter</span> to save ·{" "}
+            <span className="font-semibold">Esc</span> to cancel · Drag corners
+            to resize
           </div>
         </div>
       )}
@@ -1284,9 +1456,9 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
             top: resizePreview.y * scale,
             width: resizePreview.width * scale,
             height: resizePreview.height * scale,
-            border: '3px dashed #3B82F6',
-            borderRadius: '4px',
-            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            border: "3px dashed #3B82F6",
+            borderRadius: "4px",
+            backgroundColor: "rgba(59, 130, 246, 0.1)",
             zIndex: 999,
           }}
         >
@@ -1294,13 +1466,14 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           <div
             className="absolute bg-blue-600 text-white text-xs px-2 py-1 rounded shadow-lg"
             style={{
-              bottom: '-30px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              whiteSpace: 'nowrap',
+              bottom: "-30px",
+              left: "50%",
+              transform: "translateX(-50%)",
+              whiteSpace: "nowrap",
             }}
           >
-            {Math.round(resizePreview.width)} × {Math.round(resizePreview.height)}
+            {Math.round(resizePreview.width)} ×{" "}
+            {Math.round(resizePreview.height)}
           </div>
         </div>
       )}

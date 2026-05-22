@@ -1,14 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Document, Page, pdfjs } from 'react-pdf';
-import { PDFDocument, rgb, degrees } from 'pdf-lib';
-import { useEditorStore } from '../store/useEditorStore';
-import { TextAnnotation, DrawingAnnotation, ShapeAnnotation, HighlightAnnotation, ImageAnnotation, SearchResult, ExtractedTextItem, TextEditAnnotation } from '../types';
-import Toolbar from './Toolbar';
-import PDFCanvas from './PDFCanvas';
-import PageThumbnails from './PageThumbnails';
-import SearchBar from './SearchBar';
-import 'react-pdf/dist/Page/AnnotationLayer.css';
-import 'react-pdf/dist/Page/TextLayer.css';
+import React, { useState, useEffect, useCallback } from "react";
+import { Document, Page, pdfjs } from "react-pdf";
+import {
+  PDFDocument,
+  PDFPage,
+  rgb,
+  degrees,
+  StandardFonts,
+  PDFFont,
+} from "pdf-lib";
+import { useEditorStore } from "../store/useEditorStore";
+import {
+  TextAnnotation,
+  DrawingAnnotation,
+  ShapeAnnotation,
+  HighlightAnnotation,
+  ImageAnnotation,
+  SearchResult,
+  ExtractedTextItem,
+  TextEditAnnotation,
+} from "../types";
+import Toolbar from "./Toolbar";
+import PDFCanvas from "./PDFCanvas";
+import PageThumbnails from "./PageThumbnails";
+import SearchBar from "./SearchBar";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 
 // Set up PDF.js worker - use jsdelivr which supports newer versions
 pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -23,8 +39,9 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
   const [downloading, setDownloading] = useState(false);
   const [thumbnailsOpen, setThumbnailsOpen] = useState(false);
   const [currentFile, setCurrentFile] = useState<File>(file);
-  const [loadingProgress, setLoadingProgress] = useState<string>('');
-  const [textExtractionProgress, setTextExtractionProgress] = useState<number>(0);
+  const [loadingProgress, setLoadingProgress] = useState<string>("");
+  const [textExtractionProgress, setTextExtractionProgress] =
+    useState<number>(0);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
   const {
     currentPage,
@@ -48,7 +65,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     setTotalPages(numPages);
     setCurrentPage(1);
     setLoading(false);
-    setLoadingProgress('Extracting text from PDF...');
+    setLoadingProgress("Extracting text from PDF...");
 
     // Extract text from all pages for edit mode
     try {
@@ -60,7 +77,9 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         // Update progress
         const progress = Math.round((pageNum / numPages) * 100);
         setTextExtractionProgress(progress);
-        setLoadingProgress(`Extracting text from page ${pageNum} of ${numPages}...`);
+        setLoadingProgress(
+          `Extracting text from page ${pageNum} of ${numPages}...`
+        );
 
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
@@ -78,7 +97,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               width: item.width,
               height: item.height,
               fontSize: Math.round(transform[0]),
-              fontName: item.fontName || 'Arial',
+              fontName: item.fontName || "Arial",
             });
           }
         });
@@ -113,46 +132,161 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
           return avgYA - avgYB;
         });
 
-        // For each line, sort items by X position and combine into single text block
-        lines.forEach((line, lineIndex) => {
-          // Sort items in the line by X position (left to right)
+        // Process each line to get its properties.
+        // NOTE: item.y is the baseline in canvas coords. The visible glyph
+        // extends ~fontSize above the baseline (ascender) and a small amount
+        // below (descender). Use those to build an accurate bounding box —
+        // otherwise the white "cover" rectangle on export misses the top of
+        // the original text and it bleeds through behind the edited text.
+        const processedLines = lines.map((line, lineIndex) => {
           line.sort((a, b) => a.x - b.x);
 
-          // Combine all text items in the line
-          const lineText = line.map(item => item.str).join(' ');
-          const minX = Math.min(...line.map(item => item.x));
-          const maxX = Math.max(...line.map(item => item.x + item.width));
-          const minY = Math.min(...line.map(item => item.y));
-          const maxY = Math.max(...line.map(item => item.y + item.height));
-          const avgFontSize = Math.round(line.reduce((sum, i) => sum + i.fontSize, 0) / line.length);
+          const lineText = line.map((item) => item.str).join(" ");
+          const minX = Math.min(...line.map((item) => item.x));
+          const maxX = Math.max(...line.map((item) => item.x + item.width));
+          const avgFontSize = Math.round(
+            line.reduce((sum, i) => sum + i.fontSize, 0) / line.length
+          );
+          const baselineY = Math.max(...line.map((item) => item.y));
+          const topY = Math.min(
+            ...line.map((item) => item.y - item.fontSize)
+          );
+          const bottomY = baselineY + avgFontSize * 0.25;
 
-          allExtractedText.push({
-            id: `text-${pageNum}-${lineIndex}`,
+          return {
             text: lineText,
             x: minX,
-            y: minY,
+            maxX: maxX,
+            y: topY,
+            maxY: bottomY,
+            baselineY,
+            width: maxX - minX,
+            height: bottomY - topY,
+            fontSize: avgFontSize,
+            fontFamily: line[0].fontName,
+            lineIndex,
+          };
+        });
+
+        // Group lines into paragraphs/text blocks based on:
+        // 1. Vertical proximity (gap between lines should be less than 1.5x line height)
+        // 2. Similar X position (left alignment within tolerance)
+        // 3. Similar font properties
+        const paragraphs: typeof processedLines[] = [];
+        const xTolerance = 20; // Pixels tolerance for considering lines as same block
+
+        processedLines.forEach((line) => {
+          // Try to find an existing paragraph this line belongs to
+          let foundParagraph = false;
+
+          for (const paragraph of paragraphs) {
+            if (paragraph.length > 0) {
+              const lastLine = paragraph[paragraph.length - 1];
+              
+              // Gap between baselines (more stable than gap between bounding boxes,
+              // which can slightly overlap due to ascender/descender padding).
+              const baselineGap = line.baselineY - lastLine.baselineY;
+              const expectedLineHeight =
+                Math.max(lastLine.fontSize, line.fontSize) * 1.8;
+
+              // Lines belong to the same paragraph when the next baseline is
+              // below the previous one and within ~1.8x line height.
+              const isVerticallyClose =
+                baselineGap > 0 && baselineGap < expectedLineHeight;
+              
+              // Check if X positions are similar (same text block)
+              const isHorizontallyAligned = Math.abs(line.x - lastLine.x) < xTolerance;
+              
+              // Check if font properties are similar
+              const isSameFont = line.fontFamily === lastLine.fontFamily &&
+                                 Math.abs(line.fontSize - lastLine.fontSize) <= 2;
+
+              if (isVerticallyClose && isHorizontallyAligned && isSameFont) {
+                paragraph.push(line);
+                foundParagraph = true;
+                break;
+              }
+            }
+          }
+
+          if (!foundParagraph) {
+            paragraphs.push([line]);
+          }
+        });
+
+        // Create ExtractedTextItem for each paragraph
+        paragraphs.forEach((paragraph, paragraphIndex) => {
+          // Combine all lines in the paragraph
+          const paragraphText = paragraph.map((line) => line.text).join("\n");
+          const minX = Math.min(...paragraph.map((line) => line.x));
+          const maxX = Math.max(...paragraph.map((line) => line.maxX));
+          const minY = Math.min(...paragraph.map((line) => line.y));
+          const maxY = Math.max(...paragraph.map((line) => line.maxY));
+          const avgFontSize = Math.round(
+            paragraph.reduce((sum, line) => sum + line.fontSize, 0) / paragraph.length
+          );
+
+          // Measure the source line spacing (baseline-to-baseline) so edited
+          // text can be re-flowed with the original line height instead of a
+          // generic 1.2x guess.
+          let measuredLineHeight = avgFontSize * 1.2;
+          if (paragraph.length >= 2) {
+            const gaps: number[] = [];
+            for (let i = 1; i < paragraph.length; i++) {
+              gaps.push(paragraph[i].baselineY - paragraph[i - 1].baselineY);
+            }
+            const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length;
+            if (avgGap > 0) measuredLineHeight = avgGap;
+          }
+
+          // Detect text alignment based on position relative to page
+          const pageWidth = viewport.width;
+          const leftMargin = minX;
+          const rightMargin = pageWidth - maxX;
+          
+          let textAlign: 'left' | 'center' | 'right' = 'left';
+          
+          // Check if text is centered (both margins roughly equal)
+          if (Math.abs(leftMargin - rightMargin) < 30 && leftMargin > 50) {
+            textAlign = 'center';
+          }
+          // Check if text is right-aligned (small right margin, large left margin)
+          else if (rightMargin < 50 && leftMargin > rightMargin * 2) {
+            textAlign = 'right';
+          }
+          // Default to left alignment
+
+          allExtractedText.push({
+            id: `text-${pageNum}-${paragraphIndex}`,
+            text: paragraphText,
+            x: minX,
+            y: maxY, // canvas Y of the block's visible bottom (incl. descender)
             width: maxX - minX,
             height: maxY - minY,
             fontSize: avgFontSize,
-            fontFamily: line[0].fontName,
+            fontFamily: paragraph[0].fontFamily,
             pageNumber: pageNum,
+            textAlign,
+            pageWidth,
+            lineHeight: measuredLineHeight,
+            firstBaselineY: paragraph[0].baselineY,
           });
         });
       }
 
       setExtractedText(allExtractedText);
-      setLoadingProgress('');
+      setLoadingProgress("");
       setTextExtractionProgress(0);
     } catch (error) {
-      console.error('Error extracting text:', error);
-      setLoadingProgress('');
+      console.error("Error extracting text:", error);
+      setLoadingProgress("");
       setTextExtractionProgress(0);
     }
   };
 
   const onDocumentLoadError = (error: Error) => {
-    console.error('Error loading PDF:', error);
-    alert('Failed to load PDF. Please try another file.');
+    console.error("Error loading PDF:", error);
+    alert("Failed to load PDF. Please try another file.");
     setLoading(false);
   };
 
@@ -176,6 +310,106 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     setZoom(zoom - 0.1);
   }, [zoom, setZoom]);
 
+  // Embed the small set of standard fonts and return a picker that maps a
+  // detected fontFamily string to the closest available font + bold variant.
+  const loadFonts = async (pdfDoc: PDFDocument) => {
+    const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const helveticaOblique = await pdfDoc.embedFont(
+      StandardFonts.HelveticaOblique
+    );
+    const timesRoman = await pdfDoc.embedFont(StandardFonts.TimesRoman);
+    const timesRomanBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+    const timesRomanItalic = await pdfDoc.embedFont(
+      StandardFonts.TimesRomanItalic
+    );
+    const courier = await pdfDoc.embedFont(StandardFonts.Courier);
+    const courierBold = await pdfDoc.embedFont(StandardFonts.CourierBold);
+
+    return (fontFamily: string | undefined): PDFFont => {
+      const f = (fontFamily || "").toLowerCase();
+      const isBold = /bold|black|heavy|semibold/.test(f);
+      const isItalic = /italic|oblique/.test(f);
+      const isMono = /mono|courier|consolas|menlo/.test(f);
+      const isSerif = /serif|times|roman|georgia|garamond|cambria/.test(f);
+      if (isMono) return isBold ? courierBold : courier;
+      if (isSerif) {
+        if (isBold) return timesRomanBold;
+        if (isItalic) return timesRomanItalic;
+        return timesRoman;
+      }
+      if (isBold) return helveticaBold;
+      if (isItalic) return helveticaOblique;
+      return helvetica;
+    };
+  };
+
+  // Paint an edited text block onto the page: cover the original with a white
+  // rectangle wide enough to hide the original glyphs (incl. ascenders the
+  // bbox underestimates), then re-draw the new text using a font close to the
+  // original and the real measured glyph widths for alignment.
+  const drawTextEdit = (
+    page: PDFPage,
+    pageHeight: number,
+    ann: TextEditAnnotation,
+    pickFont: (fontFamily: string | undefined) => PDFFont
+  ) => {
+    const { fontSize, fontFamily, color, newText } = ann.data;
+    const textAlign = ann.data.textAlign || "left";
+    const font = pickFont(fontFamily);
+    const colorRgb = hexToRgb(color);
+
+    // Block in canvas coords: y is the visible bottom, height extends upward.
+    const blockTopCanvas = ann.y - (ann.height || 0);
+    const blockBottomCanvas = ann.y;
+
+    // Convert to PDF coords (Y from bottom). Add generous padding above so
+    // ascenders/diacritics on the original line cannot peek out.
+    const padX = Math.max(4, fontSize * 0.3);
+    const padTop = Math.max(6, fontSize * 0.4);
+    const padBottom = Math.max(4, fontSize * 0.3);
+    const rectX = ann.x - padX;
+    const rectBottomPdf = pageHeight - blockBottomCanvas - padBottom;
+    const rectWidth = (ann.width || 100) + padX * 2;
+    const rectHeight = (ann.height || fontSize) + padTop + padBottom;
+
+    page.drawRectangle({
+      x: rectX,
+      y: rectBottomPdf,
+      width: rectWidth,
+      height: rectHeight,
+      color: rgb(1, 1, 1),
+      borderWidth: 0,
+    });
+
+    // Place the first new line on the original first-line baseline when we
+    // recorded it; otherwise fall back to one fontSize below the block top.
+    const firstBaselinePdf =
+      ann.data.firstBaselineY != null
+        ? pageHeight - ann.data.firstBaselineY
+        : pageHeight - blockTopCanvas - fontSize;
+    const lineHeight = ann.data.lineHeight || fontSize * 1.2;
+
+    const lines = newText.split("\n");
+    lines.forEach((line, index) => {
+      if (!line) return;
+      const textWidth = font.widthOfTextAtSize(line, fontSize);
+      let xPos = ann.x;
+      if (textAlign === "center") {
+        xPos = ann.x + ((ann.width || 0) - textWidth) / 2;
+      } else if (textAlign === "right") {
+        xPos = ann.x + (ann.width || 0) - textWidth;
+      }
+      page.drawText(line, {
+        x: xPos,
+        y: firstBaselinePdf - index * lineHeight,
+        size: fontSize,
+        font,
+        color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
+      });
+    });
+  };
+
   const hexToRgb = (hex: string) => {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     return result
@@ -191,9 +425,9 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     if (annotations.length === 0) {
       // If no annotations, just download the current file
       const url = URL.createObjectURL(currentFile);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.download = currentFile.name.replace('.pdf', '_edited.pdf');
+      link.download = currentFile.name.replace(".pdf", "_edited.pdf");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -209,6 +443,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       const arrayBuffer = await currentFile.arrayBuffer();
       const pdfDoc = await PDFDocument.load(arrayBuffer);
       const pages = pdfDoc.getPages();
+      const pickFont = await loadFonts(pdfDoc);
       setDownloadProgress(10);
 
       // Render annotations onto each page
@@ -224,7 +459,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         const page = pages[pageIndex];
         const { height: pageHeight } = page.getSize();
 
-        if (annotation.type === 'text') {
+        if (annotation.type === "text") {
           const textAnn = annotation as TextAnnotation;
           const color = hexToRgb(textAnn.data.color);
 
@@ -236,44 +471,24 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               color: rgb(color.r, color.g, color.b),
             });
           } catch (error) {
-            console.error('Error drawing text annotation:', error);
+            console.error("Error drawing text annotation:", error);
           }
-        } else if (annotation.type === 'textEdit') {
-          const textEditAnn = annotation as TextEditAnnotation;
-          const color = hexToRgb(textEditAnn.data.color);
-
+        } else if (annotation.type === "textEdit") {
           try {
-            // First, draw a white rectangle to cover the original text
-            page.drawRectangle({
-              x: textEditAnn.x,
-              y: pageHeight - textEditAnn.y,
-              width: textEditAnn.width || 100,
-              height: textEditAnn.height || 20,
-              color: rgb(1, 1, 1),
-              borderWidth: 0,
-            });
-
-            // Then draw the new text, handling multi-line text
-            const lines = textEditAnn.data.newText.split('\n');
-            const lineHeight = textEditAnn.data.fontSize * 1.2;
-            lines.forEach((line, index) => {
-              if (line.trim()) {
-                page.drawText(line, {
-                  x: textEditAnn.x,
-                  y: pageHeight - textEditAnn.y - (index * lineHeight),
-                  size: textEditAnn.data.fontSize,
-                  color: rgb(color.r, color.g, color.b),
-                });
-              }
-            });
+            drawTextEdit(
+              page,
+              pageHeight,
+              annotation as TextEditAnnotation,
+              pickFont
+            );
           } catch (error) {
-            console.error('Error drawing text edit annotation:', error);
+            console.error("Error drawing text edit annotation:", error);
           }
-        } else if (annotation.type === 'shape') {
+        } else if (annotation.type === "shape") {
           const shapeAnn = annotation as ShapeAnnotation;
           const color = hexToRgb(shapeAnn.data.strokeColor);
 
-          if (shapeAnn.data.shapeType === 'rectangle') {
+          if (shapeAnn.data.shapeType === "rectangle") {
             page.drawRectangle({
               x: shapeAnn.x,
               y: pageHeight - shapeAnn.y - (shapeAnn.height || 0),
@@ -282,9 +497,10 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               borderColor: rgb(color.r, color.g, color.b),
               borderWidth: shapeAnn.data.strokeWidth,
             });
-          } else if (shapeAnn.data.shapeType === 'circle') {
+          } else if (shapeAnn.data.shapeType === "circle") {
             const centerX = shapeAnn.x + (shapeAnn.width || 0) / 2;
-            const centerY = pageHeight - shapeAnn.y - (shapeAnn.height || 0) / 2;
+            const centerY =
+              pageHeight - shapeAnn.y - (shapeAnn.height || 0) / 2;
             const radiusX = (shapeAnn.width || 0) / 2;
             const radiusY = (shapeAnn.height || 0) / 2;
 
@@ -296,16 +512,22 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               borderColor: rgb(color.r, color.g, color.b),
               borderWidth: shapeAnn.data.strokeWidth,
             });
-          } else if (shapeAnn.data.shapeType === 'line' || shapeAnn.data.shapeType === 'arrow') {
+          } else if (
+            shapeAnn.data.shapeType === "line" ||
+            shapeAnn.data.shapeType === "arrow"
+          ) {
             page.drawLine({
               start: { x: shapeAnn.x, y: pageHeight - shapeAnn.y },
-              end: { x: shapeAnn.data.endX || shapeAnn.x, y: pageHeight - (shapeAnn.data.endY || shapeAnn.y) },
+              end: {
+                x: shapeAnn.data.endX || shapeAnn.x,
+                y: pageHeight - (shapeAnn.data.endY || shapeAnn.y),
+              },
               thickness: shapeAnn.data.strokeWidth,
               color: rgb(color.r, color.g, color.b),
             });
             // Note: Arrow heads are not rendered in pdf-lib (limitation)
           }
-        } else if (annotation.type === 'highlight') {
+        } else if (annotation.type === "highlight") {
           const highlightAnn = annotation as HighlightAnnotation;
           const color = hexToRgb(highlightAnn.data.color);
 
@@ -317,7 +539,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
             color: rgb(color.r, color.g, color.b),
             opacity: highlightAnn.data.opacity,
           });
-        } else if (annotation.type === 'drawing') {
+        } else if (annotation.type === "drawing") {
           const drawingAnn = annotation as DrawingAnnotation;
           const color = hexToRgb(drawingAnn.data.color);
 
@@ -334,7 +556,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               });
             }
           }
-        } else if (annotation.type === 'image') {
+        } else if (annotation.type === "image") {
           const imageAnn = annotation as ImageAnnotation;
 
           try {
@@ -342,15 +564,24 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
             const imageData = imageAnn.data.src;
             let embeddedImage;
 
-            if (imageData.startsWith('data:image/png')) {
-              const pngImageBytes = await fetch(imageData).then(res => res.arrayBuffer());
+            if (imageData.startsWith("data:image/png")) {
+              const pngImageBytes = await fetch(imageData).then((res) =>
+                res.arrayBuffer()
+              );
               embeddedImage = await pdfDoc.embedPng(pngImageBytes);
-            } else if (imageData.startsWith('data:image/jpeg') || imageData.startsWith('data:image/jpg')) {
-              const jpgImageBytes = await fetch(imageData).then(res => res.arrayBuffer());
+            } else if (
+              imageData.startsWith("data:image/jpeg") ||
+              imageData.startsWith("data:image/jpg")
+            ) {
+              const jpgImageBytes = await fetch(imageData).then((res) =>
+                res.arrayBuffer()
+              );
               embeddedImage = await pdfDoc.embedJpg(jpgImageBytes);
             } else {
               // Try PNG as default
-              const pngImageBytes = await fetch(imageData).then(res => res.arrayBuffer());
+              const pngImageBytes = await fetch(imageData).then((res) =>
+                res.arrayBuffer()
+              );
               embeddedImage = await pdfDoc.embedPng(pngImageBytes);
             }
 
@@ -361,7 +592,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               height: imageAnn.height || 100,
             });
           } catch (error) {
-            console.error('Error drawing image annotation:', error);
+            console.error("Error drawing image annotation:", error);
           }
         }
       }
@@ -370,19 +601,21 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       setDownloadProgress(80);
       const pdfBytes = await pdfDoc.save();
       setDownloadProgress(90);
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const blob = new Blob([pdfBytes as unknown as BlobPart], {
+        type: "application/pdf",
+      });
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = url;
-      link.download = currentFile.name.replace('.pdf', '_edited.pdf');
+      link.download = currentFile.name.replace(".pdf", "_edited.pdf");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       setDownloadProgress(100);
     } catch (error) {
-      console.error('Error downloading PDF:', error);
-      alert('Failed to download PDF with annotations. Please try again.');
+      console.error("Error downloading PDF:", error);
+      alert("Failed to download PDF with annotations. Please try again.");
       setDownloadProgress(0);
     } finally {
       setDownloading(false);
@@ -392,7 +625,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
 
   const handlePageDelete = async (pageNumber: number) => {
     if (numPages <= 1) {
-      alert('Cannot delete the only page in the document.');
+      alert("Cannot delete the only page in the document.");
       return;
     }
 
@@ -407,18 +640,24 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
 
       // Save the modified PDF
       const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const newFile = new File([blob], currentFile.name, { type: 'application/pdf' });
+      const blob = new Blob([pdfBytes as unknown as BlobPart], {
+        type: "application/pdf",
+      });
+      const newFile = new File([blob], currentFile.name, {
+        type: "application/pdf",
+      });
 
       // Update state
       setCurrentFile(newFile);
 
       // Filter out annotations from the deleted page
       const { annotations: allAnnotations } = useEditorStore.getState();
-      const filteredAnnotations = allAnnotations.filter(ann => ann.pageNumber !== pageNumber);
+      const filteredAnnotations = allAnnotations.filter(
+        (ann) => ann.pageNumber !== pageNumber
+      );
 
       // Adjust page numbers for annotations after the deleted page
-      const adjustedAnnotations = filteredAnnotations.map(ann => {
+      const adjustedAnnotations = filteredAnnotations.map((ann) => {
         if (ann.pageNumber > pageNumber) {
           return { ...ann, pageNumber: ann.pageNumber - 1 };
         }
@@ -443,8 +682,8 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       setNumPages(numPages - 1);
       setTotalPages(numPages - 1);
     } catch (error) {
-      console.error('Error deleting page:', error);
-      alert('Failed to delete page. Please try again.');
+      console.error("Error deleting page:", error);
+      alert("Failed to delete page. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -468,8 +707,12 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
 
       // Save the modified PDF
       const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const newFile = new File([blob], currentFile.name, { type: 'application/pdf' });
+      const blob = new Blob([pdfBytes as unknown as BlobPart], {
+        type: "application/pdf",
+      });
+      const newFile = new File([blob], currentFile.name, {
+        type: "application/pdf",
+      });
 
       // Update state to force re-render
       setCurrentFile(newFile);
@@ -482,8 +725,8 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         setNumPages(numPages); // This triggers re-render
       }, 100);
     } catch (error) {
-      console.error('Error rotating page:', error);
-      alert('Failed to rotate page. Please try again.');
+      console.error("Error rotating page:", error);
+      alert("Failed to rotate page. Please try again.");
       setLoading(false);
     }
   };
@@ -496,6 +739,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         const arrayBuffer = await currentFile.arrayBuffer();
         const pdfDoc = await PDFDocument.load(arrayBuffer);
         const pages = pdfDoc.getPages();
+        const pickFont = await loadFonts(pdfDoc);
 
         // Render annotations onto each page (same as download)
         for (const annotation of annotations) {
@@ -505,7 +749,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
           const page = pages[pageIndex];
           const { height: pageHeight } = page.getSize();
 
-          if (annotation.type === 'text') {
+          if (annotation.type === "text") {
             const textAnn = annotation as TextAnnotation;
             const colorRgb = hexToRgb(textAnn.data.color);
             page.drawText(textAnn.data.text, {
@@ -514,32 +758,21 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               size: textAnn.data.fontSize,
               color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
             });
-          } else if (annotation.type === 'textEdit') {
-            const textEditAnn = annotation as TextEditAnnotation;
-            const colorRgb = hexToRgb(textEditAnn.data.color);
-            // Cover original text
-            page.drawRectangle({
-              x: textEditAnn.x,
-              y: pageHeight - textEditAnn.y,
-              width: textEditAnn.width || 100,
-              height: textEditAnn.height || 20,
-              color: rgb(1, 1, 1),
-              borderWidth: 0,
-            });
-            // Draw new text, handling multi-line text
-            const lines = textEditAnn.data.newText.split('\n');
-            const lineHeight = textEditAnn.data.fontSize * 1.2;
-            lines.forEach((line, index) => {
-              if (line.trim()) {
-                page.drawText(line, {
-                  x: textEditAnn.x,
-                  y: pageHeight - textEditAnn.y - (index * lineHeight),
-                  size: textEditAnn.data.fontSize,
-                  color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
-                });
-              }
-            });
-          } else if (annotation.type === 'drawing') {
+          } else if (annotation.type === "textEdit") {
+            try {
+              drawTextEdit(
+                page,
+                pageHeight,
+                annotation as TextEditAnnotation,
+                pickFont
+              );
+            } catch (error) {
+              console.error(
+                "Error drawing text edit annotation in print:",
+                error
+              );
+            }
+          } else if (annotation.type === "drawing") {
             const drawingAnn = annotation as DrawingAnnotation;
             const colorRgb = hexToRgb(drawingAnn.data.color);
             for (const path of drawingAnn.data.paths) {
@@ -554,11 +787,11 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
                 });
               }
             }
-          } else if (annotation.type === 'shape') {
+          } else if (annotation.type === "shape") {
             const shapeAnn = annotation as ShapeAnnotation;
             const colorRgb = hexToRgb(shapeAnn.data.strokeColor);
 
-            if (shapeAnn.data.shapeType === 'rectangle') {
+            if (shapeAnn.data.shapeType === "rectangle") {
               page.drawRectangle({
                 x: shapeAnn.x,
                 y: pageHeight - shapeAnn.y - (shapeAnn.height || 0),
@@ -567,9 +800,10 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
                 borderColor: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
                 borderWidth: shapeAnn.data.strokeWidth,
               });
-            } else if (shapeAnn.data.shapeType === 'circle') {
+            } else if (shapeAnn.data.shapeType === "circle") {
               const centerX = shapeAnn.x + (shapeAnn.width || 0) / 2;
-              const centerY = pageHeight - shapeAnn.y - (shapeAnn.height || 0) / 2;
+              const centerY =
+                pageHeight - shapeAnn.y - (shapeAnn.height || 0) / 2;
               const radiusX = (shapeAnn.width || 0) / 2;
               const radiusY = (shapeAnn.height || 0) / 2;
               page.drawEllipse({
@@ -580,15 +814,21 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
                 borderColor: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
                 borderWidth: shapeAnn.data.strokeWidth,
               });
-            } else if (shapeAnn.data.shapeType === 'line' || shapeAnn.data.shapeType === 'arrow') {
+            } else if (
+              shapeAnn.data.shapeType === "line" ||
+              shapeAnn.data.shapeType === "arrow"
+            ) {
               page.drawLine({
                 start: { x: shapeAnn.x, y: pageHeight - shapeAnn.y },
-                end: { x: shapeAnn.data.endX || shapeAnn.x, y: pageHeight - (shapeAnn.data.endY || shapeAnn.y) },
+                end: {
+                  x: shapeAnn.data.endX || shapeAnn.x,
+                  y: pageHeight - (shapeAnn.data.endY || shapeAnn.y),
+                },
                 thickness: shapeAnn.data.strokeWidth,
                 color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
               });
             }
-          } else if (annotation.type === 'highlight') {
+          } else if (annotation.type === "highlight") {
             const highlightAnn = annotation as HighlightAnnotation;
             const colorRgb = hexToRgb(highlightAnn.data.color);
             page.drawRectangle({
@@ -599,12 +839,14 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               color: rgb(colorRgb.r, colorRgb.g, colorRgb.b),
               opacity: highlightAnn.data.opacity,
             });
-          } else if (annotation.type === 'image') {
+          } else if (annotation.type === "image") {
             const imageAnn = annotation as ImageAnnotation;
             try {
-              const imageBytes = await fetch(imageAnn.data.src).then(res => res.arrayBuffer());
+              const imageBytes = await fetch(imageAnn.data.src).then((res) =>
+                res.arrayBuffer()
+              );
               let embeddedImage;
-              if (imageAnn.data.src.startsWith('data:image/png')) {
+              if (imageAnn.data.src.startsWith("data:image/png")) {
                 embeddedImage = await pdfDoc.embedPng(imageBytes);
               } else {
                 embeddedImage = await pdfDoc.embedJpg(imageBytes);
@@ -616,18 +858,20 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
                 height: imageAnn.height || 100,
               });
             } catch (error) {
-              console.error('Error drawing image annotation in print:', error);
+              console.error("Error drawing image annotation in print:", error);
             }
           }
         }
 
         // Save and open for printing
         const pdfBytes = await pdfDoc.save();
-        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const blob = new Blob([pdfBytes as unknown as BlobPart], {
+          type: "application/pdf",
+        });
         const url = URL.createObjectURL(blob);
 
         // Open in new window and trigger print
-        const printWindow = window.open(url, '_blank');
+        const printWindow = window.open(url, "_blank");
         if (printWindow) {
           printWindow.onload = () => {
             printWindow.print();
@@ -636,7 +880,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       } else {
         // No annotations, just print the original PDF
         const url = URL.createObjectURL(currentFile);
-        const printWindow = window.open(url, '_blank');
+        const printWindow = window.open(url, "_blank");
         if (printWindow) {
           printWindow.onload = () => {
             printWindow.print();
@@ -644,8 +888,8 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         }
       }
     } catch (error) {
-      console.error('Error printing PDF:', error);
-      alert('Failed to print PDF. Please try again.');
+      console.error("Error printing PDF:", error);
+      alert("Failed to print PDF. Please try again.");
     }
   }, [annotations, currentFile]);
 
@@ -678,15 +922,19 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
 
       // Save the reordered PDF
       const pdfBytes = await newPdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const newFile = new File([blob], currentFile.name, { type: 'application/pdf' });
+      const blob = new Blob([pdfBytes as unknown as BlobPart], {
+        type: "application/pdf",
+      });
+      const newFile = new File([blob], currentFile.name, {
+        type: "application/pdf",
+      });
 
       // Update state
       setCurrentFile(newFile);
 
       // Update annotations with new page numbers
       const { annotations: allAnnotations } = useEditorStore.getState();
-      const reorderedAnnotations = allAnnotations.map(ann => {
+      const reorderedAnnotations = allAnnotations.map((ann) => {
         // Find the new page number for this annotation
         const oldPageNum = ann.pageNumber;
         const newPageNum = pageOrder.indexOf(oldPageNum) + 1;
@@ -715,56 +963,62 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         setNumPages(numPages); // This triggers re-render
       }, 100);
     } catch (error) {
-      console.error('Error reordering pages:', error);
-      alert('Failed to reorder pages. Please try again.');
+      console.error("Error reordering pages:", error);
+      alert("Failed to reorder pages. Please try again.");
       setLoading(false);
     }
   };
 
-  const handleSearch = useCallback(async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
-
-    try {
-      const results: SearchResult[] = [];
-      const loadingTask = pdfjs.getDocument(URL.createObjectURL(currentFile));
-      const pdf = await loadingTask.promise;
-
-      // Search through all pages
-      for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const textContent = await page.getTextContent();
-
-        // Combine all text items into a single string
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-
-        // Find all occurrences of the search query (case-insensitive)
-        const lowerQuery = query.toLowerCase();
-        const lowerText = pageText.toLowerCase();
-        let index = 0;
-        let position = lowerText.indexOf(lowerQuery, index);
-
-        while (position !== -1) {
-          results.push({
-            pageNumber: pageNum,
-            text: pageText.substring(Math.max(0, position - 20), Math.min(pageText.length, position + query.length + 20)),
-            index: results.length,
-          });
-          index = position + 1;
-          position = lowerText.indexOf(lowerQuery, index);
-        }
+  const handleSearch = useCallback(
+    async (query: string) => {
+      if (!query.trim()) {
+        setSearchResults([]);
+        return;
       }
 
-      setSearchResults(results);
-    } catch (error) {
-      console.error('Error searching PDF:', error);
-      setSearchResults([]);
-    }
-  }, [currentFile, numPages, setSearchResults]);
+      try {
+        const results: SearchResult[] = [];
+        const loadingTask = pdfjs.getDocument(URL.createObjectURL(currentFile));
+        const pdf = await loadingTask.promise;
+
+        // Search through all pages
+        for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const textContent = await page.getTextContent();
+
+          // Combine all text items into a single string
+          const pageText = textContent.items
+            .map((item: any) => item.str)
+            .join(" ");
+
+          // Find all occurrences of the search query (case-insensitive)
+          const lowerQuery = query.toLowerCase();
+          const lowerText = pageText.toLowerCase();
+          let index = 0;
+          let position = lowerText.indexOf(lowerQuery, index);
+
+          while (position !== -1) {
+            results.push({
+              pageNumber: pageNum,
+              text: pageText.substring(
+                Math.max(0, position - 20),
+                Math.min(pageText.length, position + query.length + 20)
+              ),
+              index: results.length,
+            });
+            index = position + 1;
+            position = lowerText.indexOf(lowerQuery, index);
+          }
+        }
+
+        setSearchResults(results);
+      } catch (error) {
+        console.error("Error searching PDF:", error);
+        setSearchResults([]);
+      }
+    },
+    [currentFile, numPages, setSearchResults]
+  );
 
   const handleSearchToggle = useCallback(() => {
     setIsSearchOpen(!isSearchOpen);
@@ -785,66 +1039,78 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check if target is an input element to avoid conflicts
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
         return;
       }
 
       // Ctrl/Cmd + Z: Undo
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
         undo();
       }
 
       // Ctrl/Cmd + Y OR Ctrl/Cmd + Shift + Z: Redo
-      else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      else if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === "y" || (e.key === "z" && e.shiftKey))
+      ) {
         e.preventDefault();
         redo();
       }
 
       // Ctrl/Cmd + S: Save
-      else if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      else if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
         handleDownload();
       }
 
       // Ctrl/Cmd + P: Print
-      else if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      else if ((e.ctrlKey || e.metaKey) && e.key === "p") {
         e.preventDefault();
         handlePrint();
       }
 
       // Ctrl/Cmd + F: Search
-      else if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      else if ((e.ctrlKey || e.metaKey) && e.key === "f") {
         e.preventDefault();
         handleSearchToggle();
       }
 
       // Arrow keys: Page navigation
-      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
         handlePrevPage();
-      }
-      else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
         handleNextPage();
       }
 
       // + or =: Zoom in
-      else if (e.key === '+' || e.key === '=') {
+      else if (e.key === "+" || e.key === "=") {
         e.preventDefault();
         handleZoomIn();
       }
 
       // -: Zoom out
-      else if (e.key === '-') {
+      else if (e.key === "-") {
         e.preventDefault();
         handleZoomOut();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, handlePrevPage, handleNextPage, handleZoomIn, handleZoomOut, handleSearchToggle, handleDownload, handlePrint]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    undo,
+    redo,
+    handlePrevPage,
+    handleNextPage,
+    handleZoomIn,
+    handleZoomOut,
+    handleSearchToggle,
+    handleDownload,
+    handlePrint,
+  ]);
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900 transition-colors">
@@ -881,7 +1147,9 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto"></div>
-              <p className="mt-4 text-gray-600 dark:text-gray-300">Loading PDF...</p>
+              <p className="mt-4 text-gray-600 dark:text-gray-300">
+                Loading PDF...
+              </p>
             </div>
           </div>
         )}
@@ -889,14 +1157,18 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         {!loading && loadingProgress && (
           <div className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-700 px-6 py-4 rounded-lg shadow-lg z-50 border border-gray-200 dark:border-gray-600">
             <div className="text-center">
-              <div className="text-sm text-gray-700 dark:text-gray-200 mb-2">{loadingProgress}</div>
+              <div className="text-sm text-gray-700 dark:text-gray-200 mb-2">
+                {loadingProgress}
+              </div>
               <div className="w-64 bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
                 <div
                   className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
                   style={{ width: `${textExtractionProgress}%` }}
                 ></div>
               </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{textExtractionProgress}%</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                {textExtractionProgress}%
+              </div>
             </div>
           </div>
         )}
@@ -936,7 +1208,10 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
           Previous
         </button>
 
-        <span className="text-sm text-gray-700" title="Current page number and total pages">
+        <span
+          className="text-sm text-gray-700"
+          title="Current page number and total pages"
+        >
           Page {currentPage} of {numPages}
         </span>
 

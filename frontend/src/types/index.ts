@@ -18,6 +18,11 @@ export interface TextEditAnnotation extends Annotation {
     fontSize: number;
     fontFamily: string;
     color: string;
+    originalTextId: string; // ID of the ExtractedTextItem being replaced
+    textAlign?: 'left' | 'center' | 'right'; // Preserved text alignment
+    pageWidth?: number; // Page width for proper alignment
+    lineHeight?: number; // Source baseline-to-baseline spacing
+    firstBaselineY?: number; // Canvas Y of original first-line baseline
   };
 }
 
@@ -109,4 +114,8 @@ export interface ExtractedTextItem {
   fontSize: number;
   fontFamily: string;
   pageNumber: number;
+  textAlign?: 'left' | 'center' | 'right'; // Detected text alignment
+  pageWidth?: number; // Page width for calculating alignment
+  lineHeight?: number; // Measured baseline-to-baseline spacing in source PDF
+  firstBaselineY?: number; // Canvas Y of the first line's baseline (for accurate placement)
 }
