@@ -363,10 +363,43 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     };
   };
 
+  // Word-wrap a string to a max width using the embedded font's real glyph
+  // metrics. Honours hard \n breaks. If a single word is longer than maxWidth
+  // we still emit it on its own line (don't drop content).
+  const wrapTextToWidth = (
+    text: string,
+    font: PDFFont,
+    fontSize: number,
+    maxWidth: number
+  ): string[] => {
+    const out: string[] = [];
+    const paragraphs = text.split("\n");
+    for (const paragraph of paragraphs) {
+      if (paragraph.length === 0) {
+        out.push("");
+        continue;
+      }
+      const words = paragraph.split(/\s+/);
+      let current = "";
+      for (const word of words) {
+        if (!word) continue;
+        const candidate = current ? current + " " + word : word;
+        if (font.widthOfTextAtSize(candidate, fontSize) <= maxWidth) {
+          current = candidate;
+        } else {
+          if (current) out.push(current);
+          current = word;
+        }
+      }
+      if (current) out.push(current);
+    }
+    return out;
+  };
+
   // Paint an edited text block onto the page: cover the original with a white
   // rectangle wide enough to hide the original glyphs (incl. ascenders the
   // bbox underestimates), then re-draw the new text using a font close to the
-  // original and the real measured glyph widths for alignment.
+  // original, with word-wrap inside the block width.
   const drawTextEdit = (
     page: PDFPage,
     pageHeight: number,
@@ -378,19 +411,29 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     const font = pickFont(fontFamily);
     const colorRgb = hexToRgb(color);
 
-    // Block in canvas coords: y is the visible bottom, height extends upward.
+    const blockWidth = ann.width || 100;
     const blockTopCanvas = ann.y - (ann.height || 0);
     const blockBottomCanvas = ann.y;
+    const lineHeight = ann.data.lineHeight || fontSize * 1.2;
 
-    // Convert to PDF coords (Y from bottom). Add generous padding above so
-    // ascenders/diacritics on the original line cannot peek out.
+    // Wrap before sizing the cover rectangle so it grows downward to fit any
+    // extra lines (the edited text may be longer than the source).
+    const wrapped = wrapTextToWidth(newText, font, fontSize, blockWidth);
+    const wrappedHeight = Math.max(
+      ann.height || fontSize,
+      wrapped.length * lineHeight + fontSize * 0.25
+    );
+
+    // Convert to PDF coords (Y from bottom). Padding above covers ascenders
+    // the original bbox underestimates.
     const padX = Math.max(4, fontSize * 0.3);
     const padTop = Math.max(6, fontSize * 0.4);
     const padBottom = Math.max(4, fontSize * 0.3);
     const rectX = ann.x - padX;
-    const rectBottomPdf = pageHeight - blockBottomCanvas - padBottom;
-    const rectWidth = (ann.width || 100) + padX * 2;
-    const rectHeight = (ann.height || fontSize) + padTop + padBottom;
+    const rectBottomPdf = pageHeight - blockBottomCanvas - padBottom -
+      Math.max(0, wrappedHeight - (ann.height || 0));
+    const rectWidth = blockWidth + padX * 2;
+    const rectHeight = wrappedHeight + padTop + padBottom;
 
     page.drawRectangle({
       x: rectX,
@@ -407,17 +450,15 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       ann.data.firstBaselineY != null
         ? pageHeight - ann.data.firstBaselineY
         : pageHeight - blockTopCanvas - fontSize;
-    const lineHeight = ann.data.lineHeight || fontSize * 1.2;
 
-    const lines = newText.split("\n");
-    lines.forEach((line, index) => {
+    wrapped.forEach((line, index) => {
       if (!line) return;
       const textWidth = font.widthOfTextAtSize(line, fontSize);
       let xPos = ann.x;
       if (textAlign === "center") {
-        xPos = ann.x + ((ann.width || 0) - textWidth) / 2;
+        xPos = ann.x + (blockWidth - textWidth) / 2;
       } else if (textAlign === "right") {
-        xPos = ann.x + (ann.width || 0) - textWidth;
+        xPos = ann.x + blockWidth - textWidth;
       }
       page.drawText(line, {
         x: xPos,

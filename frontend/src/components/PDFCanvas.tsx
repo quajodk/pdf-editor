@@ -597,21 +597,34 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
   const handleExtractedTextSubmit = (newText: string) => {
     if (editingExtractedText && newText.trim()) {
-      // Calculate approximate width and height based on text length
-      // Use a rough estimate: average character width is ~60% of fontSize
-      const lines = newText.split("\n");
-      const maxLineLength = Math.max(...lines.map((line) => line.length));
-      const charWidth = editingExtractedText.fontSize * 0.6;
-      const estimatedWidth = Math.max(
-        editingExtractedText.width,
-        maxLineLength * charWidth
-      );
+      // Keep the edited block inside the ORIGINAL text region. Without this
+      // the annotation grows wider than the source block (or the page) when
+      // the user types a long line, and the overlay + saved PDF spill off
+      // the canvas.
+      const estimatedWidth = editingExtractedText.width;
 
-      // For multi-line text, calculate height based on line breaks
-      const lineHeight = editingExtractedText.fontSize * 1.2; // 1.2 line height multiplier
+      // Estimate how many lines the new text will occupy AFTER word-wrap
+      // inside the original width. ~0.5 * fontSize is a conservative
+      // average glyph advance for proportional body fonts, so we slightly
+      // over-estimate the line count (safer than clipping).
+      const charWidth = editingExtractedText.fontSize * 0.5;
+      const charsPerLine = Math.max(
+        10,
+        Math.floor(editingExtractedText.width / charWidth)
+      );
+      const rawLines = newText.split("\n");
+      let wrappedLineCount = 0;
+      for (const line of rawLines) {
+        wrappedLineCount +=
+          line.length === 0 ? 1 : Math.ceil(line.length / charsPerLine);
+      }
+
+      const lineHeight =
+        editingExtractedText.lineHeight ||
+        editingExtractedText.fontSize * 1.2;
       const estimatedHeight = Math.max(
         editingExtractedText.height,
-        lines.length * lineHeight
+        wrappedLineCount * lineHeight
       );
 
       // If we're revising an already-edited block, find the existing
