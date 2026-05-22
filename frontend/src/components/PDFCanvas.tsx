@@ -97,9 +97,15 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   >(null);
   const [eraserPath, setEraserPath] = useState<{ x: number; y: number }[]>([]);
 
-  // For text block resizing
+  // For text block resizing (blue source overlay).
   const [resizingTextBlock, setResizingTextBlock] =
     useState<ExtractedTextItem | null>(null);
+  // Parallel state for resizing a textEdit annotation (green overlay).
+  // The math/preview/commit pipeline below treats either as the active
+  // resize target; commit dispatches to updateExtractedTextItem or
+  // updateAnnotation respectively.
+  const [resizingAnnotation, setResizingAnnotation] =
+    useState<TextEditAnnotation | null>(null);
   const [resizePreview, setResizePreview] = useState<{
     x: number;
     y: number;
@@ -289,8 +295,25 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Handle text block resizing
-    if (resizingTextBlock && dragStart && resizeHandle && resizePreview) {
+    // Handle text block resizing — either a source extracted block or a
+    // textEdit annotation. The math is identical; only the starting bounds
+    // and the commit target differ. resizeStart unifies the starting bounds.
+    const resizeStart = resizingTextBlock
+      ? {
+          x: resizingTextBlock.x,
+          y: resizingTextBlock.y,
+          width: resizingTextBlock.width,
+          height: resizingTextBlock.height,
+        }
+      : resizingAnnotation
+      ? {
+          x: resizingAnnotation.x,
+          y: resizingAnnotation.y,
+          width: resizingAnnotation.width ?? 100,
+          height: resizingAnnotation.height ?? 20,
+        }
+      : null;
+    if (resizeStart && dragStart && resizeHandle && resizePreview) {
       const dx = (e.clientX - dragStart.x) / scale;
       const dy = (e.clientY - dragStart.y) / scale;
 
@@ -301,30 +324,30 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
 
       if (resizeHandle === "se") {
         // Bottom-right: increase width and height
-        newWidth = Math.max(20, resizingTextBlock.width + dx);
-        newHeight = Math.max(10, resizingTextBlock.height + dy);
+        newWidth = Math.max(20, resizeStart.width + dx);
+        newHeight = Math.max(10, resizeStart.height + dy);
       } else if (resizeHandle === "sw") {
         // Bottom-left: move left edge and change width/height
-        newWidth = Math.max(20, resizingTextBlock.width - dx);
-        newHeight = Math.max(10, resizingTextBlock.height + dy);
-        newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
+        newWidth = Math.max(20, resizeStart.width - dx);
+        newHeight = Math.max(10, resizeStart.height + dy);
+        newX = resizeStart.x + (resizeStart.width - newWidth);
       } else if (resizeHandle === "ne") {
         // Top-right: move top edge and change width/height
-        newWidth = Math.max(20, resizingTextBlock.width + dx);
-        newHeight = Math.max(10, resizingTextBlock.height - dy);
+        newWidth = Math.max(20, resizeStart.width + dx);
+        newHeight = Math.max(10, resizeStart.height - dy);
         newY =
-          resizingTextBlock.y -
-          resizingTextBlock.height +
-          (resizingTextBlock.height - newHeight);
+          resizeStart.y -
+          resizeStart.height +
+          (resizeStart.height - newHeight);
       } else if (resizeHandle === "nw") {
         // Top-left: move both edges
-        newWidth = Math.max(20, resizingTextBlock.width - dx);
-        newHeight = Math.max(10, resizingTextBlock.height - dy);
-        newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
+        newWidth = Math.max(20, resizeStart.width - dx);
+        newHeight = Math.max(10, resizeStart.height - dy);
+        newX = resizeStart.x + (resizeStart.width - newWidth);
         newY =
-          resizingTextBlock.y -
-          resizingTextBlock.height +
-          (resizingTextBlock.height - newHeight);
+          resizeStart.y -
+          resizeStart.height +
+          (resizeStart.height - newHeight);
       }
 
       setResizePreview({
@@ -424,15 +447,25 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     // Handle text block resize completion
     // Note: This handler is now primarily handled by the global useEffect hook
     // to ensure mouseup events are captured even when the mouse moves outside the canvas
-    if (resizingTextBlock && resizePreview) {
-      updateExtractedTextItem(resizingTextBlock.id, {
-        x: resizePreview.x,
-        y: resizePreview.y + resizePreview.height, // Note: y is at the bottom of the text block
-        width: resizePreview.width,
-        height: resizePreview.height,
-      });
+    if ((resizingTextBlock || resizingAnnotation) && resizePreview) {
+      if (resizingTextBlock) {
+        updateExtractedTextItem(resizingTextBlock.id, {
+          x: resizePreview.x,
+          y: resizePreview.y + resizePreview.height, // y is the block's bottom
+          width: resizePreview.width,
+          height: resizePreview.height,
+        });
+      } else if (resizingAnnotation) {
+        updateAnnotation(resizingAnnotation.id, {
+          x: resizePreview.x,
+          y: resizePreview.y + resizePreview.height,
+          width: resizePreview.width,
+          height: resizePreview.height,
+        });
+      }
 
       setResizingTextBlock(null);
+      setResizingAnnotation(null);
       setResizePreview(null);
       setResizeHandle(null);
       setDragStart(null);
@@ -719,15 +752,30 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [selectedAnnotationIds, deleteSelectedAnnotations]);
 
-  // Handle global mouse events when resizing text blocks
+  // Handle global mouse events when resizing source blocks OR textEdit
+  // annotations. The starting bounds and the commit target differ; the math
+  // is identical.
   useEffect(() => {
-    if (!resizingTextBlock) return;
+    if (!resizingTextBlock && !resizingAnnotation) return;
+
+    const start = resizingTextBlock
+      ? {
+          x: resizingTextBlock.x,
+          y: resizingTextBlock.y,
+          width: resizingTextBlock.width,
+          height: resizingTextBlock.height,
+        }
+      : {
+          x: resizingAnnotation!.x,
+          y: resizingAnnotation!.y,
+          width: resizingAnnotation!.width ?? 100,
+          height: resizingAnnotation!.height ?? 20,
+        };
 
     const handleGlobalMouseMove = (e: MouseEvent) => {
       if (!canvasRef.current || !dragStart || !resizeHandle || !resizePreview)
         return;
 
-      const rect = canvasRef.current.getBoundingClientRect();
       const dx = (e.clientX - dragStart.x) / scale;
       const dy = (e.clientY - dragStart.y) / scale;
 
@@ -737,27 +785,21 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       let newHeight = resizePreview.height;
 
       if (resizeHandle === "se") {
-        newWidth = Math.max(20, resizingTextBlock.width + dx);
-        newHeight = Math.max(10, resizingTextBlock.height + dy);
+        newWidth = Math.max(20, start.width + dx);
+        newHeight = Math.max(10, start.height + dy);
       } else if (resizeHandle === "sw") {
-        newWidth = Math.max(20, resizingTextBlock.width - dx);
-        newHeight = Math.max(10, resizingTextBlock.height + dy);
-        newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
+        newWidth = Math.max(20, start.width - dx);
+        newHeight = Math.max(10, start.height + dy);
+        newX = start.x + (start.width - newWidth);
       } else if (resizeHandle === "ne") {
-        newWidth = Math.max(20, resizingTextBlock.width + dx);
-        newHeight = Math.max(10, resizingTextBlock.height - dy);
-        newY =
-          resizingTextBlock.y -
-          resizingTextBlock.height +
-          (resizingTextBlock.height - newHeight);
+        newWidth = Math.max(20, start.width + dx);
+        newHeight = Math.max(10, start.height - dy);
+        newY = start.y - start.height + (start.height - newHeight);
       } else if (resizeHandle === "nw") {
-        newWidth = Math.max(20, resizingTextBlock.width - dx);
-        newHeight = Math.max(10, resizingTextBlock.height - dy);
-        newX = resizingTextBlock.x + (resizingTextBlock.width - newWidth);
-        newY =
-          resizingTextBlock.y -
-          resizingTextBlock.height +
-          (resizingTextBlock.height - newHeight);
+        newWidth = Math.max(20, start.width - dx);
+        newHeight = Math.max(10, start.height - dy);
+        newX = start.x + (start.width - newWidth);
+        newY = start.y - start.height + (start.height - newHeight);
       }
 
       setResizePreview({
@@ -769,16 +811,26 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     };
 
     const handleGlobalMouseUp = () => {
-      if (resizingTextBlock && resizePreview) {
-        updateExtractedTextItem(resizingTextBlock.id, {
-          x: resizePreview.x,
-          y: resizePreview.y + resizePreview.height,
-          width: resizePreview.width,
-          height: resizePreview.height,
-        });
+      if (resizePreview) {
+        if (resizingTextBlock) {
+          updateExtractedTextItem(resizingTextBlock.id, {
+            x: resizePreview.x,
+            y: resizePreview.y + resizePreview.height,
+            width: resizePreview.width,
+            height: resizePreview.height,
+          });
+        } else if (resizingAnnotation) {
+          updateAnnotation(resizingAnnotation.id, {
+            x: resizePreview.x,
+            y: resizePreview.y + resizePreview.height,
+            width: resizePreview.width,
+            height: resizePreview.height,
+          });
+        }
       }
 
       setResizingTextBlock(null);
+      setResizingAnnotation(null);
       setResizePreview(null);
       setResizeHandle(null);
       setDragStart(null);
@@ -793,11 +845,13 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     };
   }, [
     resizingTextBlock,
+    resizingAnnotation,
     dragStart,
     resizeHandle,
     resizePreview,
     scale,
     updateExtractedTextItem,
+    updateAnnotation,
   ]);
 
   // Drag-to-move for source / textEdit overlays. The active drag is tracked
@@ -1454,37 +1508,25 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               }}
               aria-hidden
             />
-            {/* (2) Editable text overlay at the annotation's display pos. */}
+            {/* (2) Editable text overlay at the annotation's display pos.
+                Outer shell carries drag/click handlers + hover-target for
+                the resize handles. Inner div holds the visible styling and
+                clips long text. Corner handles sit as siblings of the inner
+                div so they can extend past its bounds (the inner is
+                overflow:hidden; positioning them inside would clip them). */}
             <div
-              className="absolute"
+              className="absolute group"
               style={{
                 left: (annotation.x - 5) * scale,
                 top: (annotation.y - annotation.height! - 2) * scale,
                 width: dispWidthPx * scale,
-                // Fixed height (NOT minHeight) — otherwise long edited text
-                // grows the div downward and the pointerEvents:auto region
-                // covers + swallows clicks on neighbouring text blocks.
                 height: dispHeightPx * scale,
-                overflow: "hidden",
-                backgroundColor: "white",
-                fontSize: textEdit.data.fontSize * scale,
-                fontFamily: textEdit.data.fontFamily,
-                fontWeight: textEdit.data.bold ? "bold" : "normal",
-                fontStyle: textEdit.data.italic ? "italic" : "normal",
-                color: textEdit.data.color,
                 pointerEvents: showBorder ? "auto" : "none",
                 cursor: showBorder
                   ? blockDrag?.id === annotation.id
                     ? "grabbing"
                     : "grab"
                   : "default",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                lineHeight: "1.2",
-                border: showBorder ? "2px dashed #10B981" : "none",
-                borderRadius: "2px",
-                padding: "2px 5px",
-                textAlign: textAlign,
                 zIndex: 5,
               }}
               title={showBorder ? "Drag to move · click to edit" : undefined}
@@ -1519,7 +1561,80 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 setEditingItalic(textEdit.data.italic ?? !!source.italic);
               }}
             >
-              {textEdit.data.newText}
+              {/* Inner: visible styled text with clipping. */}
+              <div
+                className="w-full h-full"
+                style={{
+                  overflow: "hidden",
+                  backgroundColor: "white",
+                  fontSize: textEdit.data.fontSize * scale,
+                  fontFamily: textEdit.data.fontFamily,
+                  fontWeight: textEdit.data.bold ? "bold" : "normal",
+                  fontStyle: textEdit.data.italic ? "italic" : "normal",
+                  color: textEdit.data.color,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  lineHeight: "1.2",
+                  border: showBorder ? "2px dashed #10B981" : "none",
+                  borderRadius: "2px",
+                  padding: "2px 5px",
+                  textAlign: textAlign,
+                  boxSizing: "border-box",
+                }}
+              >
+                {textEdit.data.newText}
+              </div>
+              {/* Resize handles (only in editText mode, on hover). Each
+                  handle's onMouseDown stopPropagation prevents the shell's
+                  drag from also kicking in. */}
+              {showBorder && (
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  {(["nw", "ne", "sw", "se"] as const).map((corner) => {
+                    const pos: React.CSSProperties = { width: 12, height: 12 };
+                    if (corner === "nw") {
+                      pos.left = -6;
+                      pos.top = -6;
+                    } else if (corner === "ne") {
+                      pos.right = -6;
+                      pos.top = -6;
+                    } else if (corner === "sw") {
+                      pos.left = -6;
+                      pos.bottom = -6;
+                    } else {
+                      pos.right = -6;
+                      pos.bottom = -6;
+                    }
+                    const cursor =
+                      corner === "nw" || corner === "se"
+                        ? "cursor-nwse-resize"
+                        : "cursor-nesw-resize";
+                    return (
+                      <div
+                        key={corner}
+                        className={`absolute bg-green-500 rounded-full border-2 border-white ${cursor} hover:bg-green-600 hover:scale-125 transition-all`}
+                        style={{
+                          ...pos,
+                          pointerEvents: "auto",
+                          zIndex: 20,
+                        }}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          setResizingAnnotation(textEdit);
+                          setResizeHandle(corner);
+                          setDragStart({ x: e.clientX, y: e.clientY });
+                          setResizePreview({
+                            x: annotation.x,
+                            y:
+                              annotation.y - (annotation.height ?? 0),
+                            width: annotation.width ?? 0,
+                            height: annotation.height ?? 0,
+                          });
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </React.Fragment>
         );
@@ -1705,7 +1820,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
       )}
 
       {/* Resize preview overlay */}
-      {resizePreview && resizingTextBlock && (
+      {resizePreview && (resizingTextBlock || resizingAnnotation) && (
         <div
           className="absolute pointer-events-none"
           style={{
