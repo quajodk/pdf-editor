@@ -60,6 +60,20 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   // formatting on re-edit) when the modal opens; the B/I toolbar toggles it.
   const [editingBold, setEditingBold] = useState(false);
   const [editingItalic, setEditingItalic] = useState(false);
+  // Drag-to-move state for an extracted source block or a textEdit overlay.
+  // moved=true once the cursor has travelled past the click threshold; the
+  // overlay's onClick consults the trailing suppressClickRef to ignore the
+  // click event that follows a real drag.
+  const [blockDrag, setBlockDrag] = useState<{
+    kind: "source" | "annotation";
+    id: string;
+    startMouseX: number;
+    startMouseY: number;
+    startItemX: number;
+    startItemY: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
   const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(
     null
   );
@@ -786,6 +800,49 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     updateExtractedTextItem,
   ]);
 
+  // Drag-to-move for source / textEdit overlays. The active drag is tracked
+  // in blockDrag; this effect owns the window mousemove/up listeners while
+  // a drag is in progress. We update the store on every frame so the
+  // overlay tracks the cursor live.
+  useEffect(() => {
+    if (!blockDrag) return;
+    const DRAG_THRESHOLD = 4; // px in screen space before it counts as a drag
+
+    const onMove = (e: MouseEvent) => {
+      const dxPx = e.clientX - blockDrag.startMouseX;
+      const dyPx = e.clientY - blockDrag.startMouseY;
+      if (
+        !blockDrag.moved &&
+        Math.abs(dxPx) + Math.abs(dyPx) < DRAG_THRESHOLD
+      ) {
+        return;
+      }
+      const newX = blockDrag.startItemX + dxPx / scale;
+      const newY = blockDrag.startItemY + dyPx / scale;
+      if (blockDrag.kind === "source") {
+        updateExtractedTextItem(blockDrag.id, { x: newX, y: newY });
+      } else {
+        updateAnnotation(blockDrag.id, { x: newX, y: newY });
+      }
+      if (!blockDrag.moved) {
+        // Latch the moved flag so the trailing click is suppressed.
+        setBlockDrag({ ...blockDrag, moved: true });
+      }
+    };
+
+    const onUp = () => {
+      if (blockDrag.moved) suppressClickRef.current = true;
+      setBlockDrag(null);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [blockDrag, scale, updateExtractedTextItem, updateAnnotation]);
+
   const pageAnnotations = annotations.filter(
     (ann) => ann.pageNumber === pageNumber
   );
@@ -1199,7 +1256,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
             return (
               <div
                 key={textItem.id}
-                className="absolute cursor-pointer hover:bg-blue-50 hover:bg-opacity-20 transition-colors group"
+                className="absolute hover:bg-blue-50 hover:bg-opacity-20 transition-colors group"
                 style={{
                   left: textItem.x * scale,
                   top: (textItem.y - textItem.height) * scale,
@@ -1210,14 +1267,34 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   border: "2px dashed #3B82F6",
                   borderRadius: "2px",
                   boxSizing: "border-box",
+                  cursor: blockDrag?.id === textItem.id ? "grabbing" : "grab",
+                }}
+                onMouseDown={(e) => {
+                  // Only the body initiates a drag — the resize handles are
+                  // children that stopPropagation in their own onMouseDown.
+                  if (e.button !== 0) return;
+                  e.stopPropagation();
+                  setBlockDrag({
+                    kind: "source",
+                    id: textItem.id,
+                    startMouseX: e.clientX,
+                    startMouseY: e.clientY,
+                    startItemX: textItem.x,
+                    startItemY: textItem.y,
+                    moved: false,
+                  });
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (suppressClickRef.current) {
+                    suppressClickRef.current = false;
+                    return; // user just dragged — don't open the editor
+                  }
                   setEditingExtractedText(textItem);
                   setEditingBold(!!textItem.bold);
                   setEditingItalic(!!textItem.italic);
                 }}
-                title="Click to edit this text"
+                title="Drag to move · click to edit"
               >
                 {/* Show resize handles on hover */}
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1360,7 +1437,11 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 fontStyle: textEdit.data.italic ? "italic" : "normal",
                 color: textEdit.data.color,
                 pointerEvents: showBorder ? "auto" : "none",
-                cursor: showBorder ? "pointer" : "default",
+                cursor: showBorder
+                  ? blockDrag?.id === annotation.id
+                    ? "grabbing"
+                    : "grab"
+                  : "default",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
                 lineHeight: "1.2",
@@ -1370,10 +1451,30 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 textAlign: textAlign,
                 zIndex: 5,
               }}
-              title={showBorder ? "Click to edit this text" : undefined}
+              title={
+                showBorder ? "Drag to move · click to edit" : undefined
+              }
+              onMouseDown={(e) => {
+                if (currentTool !== "editText") return;
+                if (e.button !== 0) return;
+                e.stopPropagation();
+                setBlockDrag({
+                  kind: "annotation",
+                  id: annotation.id,
+                  startMouseX: e.clientX,
+                  startMouseY: e.clientY,
+                  startItemX: annotation.x,
+                  startItemY: annotation.y,
+                  moved: false,
+                });
+              }}
               onClick={(e) => {
                 if (currentTool !== "editText") return;
                 e.stopPropagation();
+                if (suppressClickRef.current) {
+                  suppressClickRef.current = false;
+                  return; // user just dragged — don't open the editor
+                }
                 // Re-open the editor on the source block, pre-populated with
                 // the current edited text. The submit handler will detect
                 // the existing annotation and update it in place.

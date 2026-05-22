@@ -122,4 +122,12 @@ export interface ExtractedTextItem {
   firstBaselineY?: number; // Canvas Y of the first line's baseline (for accurate placement)
   bold?: boolean;
   italic?: boolean;
+  // The block's frozen position/size at extraction time. x/y/width/height
+  // can be dragged or resized for display, but the original PDF text still
+  // lives at original* — that's what the cover rectangle must blank out at
+  // save time, regardless of where the user has repositioned the block.
+  originalX?: number;
+  originalY?: number;
+  originalWidth?: number;
+  originalHeight?: number;
 }

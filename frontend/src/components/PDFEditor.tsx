@@ -58,6 +58,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     currentSearchIndex,
     setSearchResults,
     setExtractedText,
+    extractedText,
   } = useEditorStore();
 
   const onDocumentLoadSuccess = async ({ numPages }: { numPages: number }) => {
@@ -307,6 +308,12 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
             y: maxY, // canvas Y of the block's visible bottom (incl. descender)
             width: maxX - minX,
             height: maxY - minY,
+            // Frozen position used for the white cover rectangle on save —
+            // never mutated even when the user drags/resizes the block.
+            originalX: minX,
+            originalY: maxY,
+            originalWidth: maxX - minX,
+            originalHeight: maxY - minY,
             fontSize: avgFontSize,
             fontFamily: paragraph[0].fontFamily,
             pageNumber: pageNum,
@@ -438,6 +445,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     page: PDFPage,
     pageHeight: number,
     ann: TextEditAnnotation,
+    source: ExtractedTextItem | undefined,
     pickFont: (
       fontFamily: string | undefined,
       bold?: boolean,
@@ -449,10 +457,18 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     const font = pickFont(fontFamily, ann.data.bold, ann.data.italic);
     const colorRgb = hexToRgb(color);
 
+    // Display block (where the new text is drawn) — uses the annotation's
+    // current x/y/width/height, which can be moved/resized by the user.
     const blockWidth = ann.width || 100;
-    const blockTopCanvas = ann.y - (ann.height || 0);
-    const blockBottomCanvas = ann.y;
     const lineHeight = ann.data.lineHeight || fontSize * 1.2;
+
+    // Cover block (what we blank out on the page) — uses the immutable
+    // original position of the source text, NOT the display position.
+    // Otherwise dragging the edited block uncovers the original PDF text.
+    const coverX = source?.originalX ?? ann.x;
+    const coverY = source?.originalY ?? ann.y;
+    const coverWidth = source?.originalWidth ?? blockWidth;
+    const coverHeight = source?.originalHeight ?? (ann.height || fontSize);
 
     // Wrap before sizing the cover rectangle so it grows downward to fit any
     // extra lines (the edited text may be longer than the source).
@@ -462,32 +478,33 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       wrapped.length * lineHeight + fontSize * 0.25
     );
 
-    // Convert to PDF coords (Y from bottom). Padding above covers ascenders
-    // the original bbox underestimates.
+    // White cover at the ORIGINAL location (PDF coords, Y from bottom).
     const padX = Math.max(4, fontSize * 0.3);
     const padTop = Math.max(6, fontSize * 0.4);
     const padBottom = Math.max(4, fontSize * 0.3);
-    const rectX = ann.x - padX;
-    const rectBottomPdf = pageHeight - blockBottomCanvas - padBottom -
-      Math.max(0, wrappedHeight - (ann.height || 0));
-    const rectWidth = blockWidth + padX * 2;
-    const rectHeight = wrappedHeight + padTop + padBottom;
-
     page.drawRectangle({
-      x: rectX,
-      y: rectBottomPdf,
-      width: rectWidth,
-      height: rectHeight,
+      x: coverX - padX,
+      y: pageHeight - coverY - padBottom,
+      width: coverWidth + padX * 2,
+      height: coverHeight + padTop + padBottom,
       color: rgb(1, 1, 1),
       borderWidth: 0,
     });
 
-    // Place the first new line on the original first-line baseline when we
-    // recorded it; otherwise fall back to one fontSize below the block top.
+    // If the block has been dragged, the original baseline is meaningless
+    // for the new position. Re-anchor the first line to the display block's
+    // top edge in that case; otherwise honour the captured baseline so the
+    // first line lands exactly where the original sat.
+    const moved =
+      source?.originalX != null &&
+      source?.originalY != null &&
+      (Math.abs(ann.x - source.originalX) > 1 ||
+        Math.abs(ann.y - source.originalY) > 1);
+    const displayBlockTopCanvas = ann.y - (ann.height || 0);
     const firstBaselinePdf =
-      ann.data.firstBaselineY != null
+      !moved && ann.data.firstBaselineY != null
         ? pageHeight - ann.data.firstBaselineY
-        : pageHeight - blockTopCanvas - fontSize;
+        : pageHeight - displayBlockTopCanvas - fontSize;
 
     wrapped.forEach((line, index) => {
       if (!line) return;
@@ -573,12 +590,11 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
           }
         } else if (annotation.type === "textEdit") {
           try {
-            drawTextEdit(
-              page,
-              pageHeight,
-              annotation as TextEditAnnotation,
-              pickFont
+            const tEditAnn = annotation as TextEditAnnotation;
+            const source = extractedText.find(
+              (t) => t.id === tEditAnn.data.originalTextId
             );
+            drawTextEdit(page, pageHeight, tEditAnn, source, pickFont);
           } catch (error) {
             console.error("Error drawing text edit annotation:", error);
           }
@@ -719,7 +735,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       setDownloading(false);
       setTimeout(() => setDownloadProgress(0), 1000); // Reset after 1 second
     }
-  }, [annotations, currentFile]);
+  }, [annotations, currentFile, extractedText]);
 
   const handlePageDelete = async (pageNumber: number) => {
     if (numPages <= 1) {
@@ -858,12 +874,11 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
             });
           } else if (annotation.type === "textEdit") {
             try {
-              drawTextEdit(
-                page,
-                pageHeight,
-                annotation as TextEditAnnotation,
-                pickFont
+              const tEditAnn = annotation as TextEditAnnotation;
+              const source = extractedText.find(
+                (t) => t.id === tEditAnn.data.originalTextId
               );
+              drawTextEdit(page, pageHeight, tEditAnn, source, pickFont);
             } catch (error) {
               console.error(
                 "Error drawing text edit annotation in print:",
@@ -989,7 +1004,7 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
       console.error("Error printing PDF:", error);
       alert("Failed to print PDF. Please try again.");
     }
-  }, [annotations, currentFile]);
+  }, [annotations, currentFile, extractedText]);
 
   const handlePageReorder = async (fromPage: number, toPage: number) => {
     setLoading(true);
