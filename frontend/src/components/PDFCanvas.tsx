@@ -1400,35 +1400,71 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
             );
           })}
 
-      {/* Render text edit annotations with dotted border when in edit mode */}
+      {/* Render text edit annotations. We split this into two layers:
+            1) A white "cover" div pinned at the source's ORIGINAL location
+               so the underlying PDF text layer is always hidden, even when
+               the user drags the edited block elsewhere.
+            2) A "editable" overlay at the annotation's current x/y that
+               carries the dashed border, click/drag handlers and the new
+               text content. Dragging only moves layer (2); layer (1) stays.
+          Without this split, a drag uncovers the original text and you see
+          a phantom "duplicate" of the source. */}
       {pageAnnotations.map((annotation) => {
-        if (annotation.type === "textEdit") {
-          const textEdit = annotation as TextEditAnnotation;
-          const showBorder = currentTool === "editText";
-          const textAlign = textEdit.data.textAlign || "left";
+        if (annotation.type !== "textEdit") return null;
+        const textEdit = annotation as TextEditAnnotation;
+        const showBorder = currentTool === "editText";
+        const textAlign = textEdit.data.textAlign || "left";
 
-          const coverWidth = Math.max(
-            annotation.width! + 10,
-            annotation.width! * 1.1
-          );
-          const coverHeight = Math.max(
-            annotation.height! + 4,
-            annotation.height! * 1.1
-          );
+        const source = extractedText.find(
+          (t) => t.id === textEdit.data.originalTextId
+        );
+        // Cover region: prefer the immutable original*; fall back to the
+        // annotation's own bbox for legacy annotations created before the
+        // original* fields existed.
+        const coverX = source?.originalX ?? annotation.x;
+        const coverY = source?.originalY ?? annotation.y;
+        const coverW = source?.originalWidth ?? annotation.width!;
+        const coverH = source?.originalHeight ?? annotation.height!;
+        const coverWidthPx = Math.max(coverW + 10, coverW * 1.1);
+        const coverHeightPx = Math.max(coverH + 4, coverH * 1.1);
 
-          return (
+        // Display region (where the new text appears in the editor).
+        const dispWidthPx = Math.max(
+          annotation.width! + 10,
+          annotation.width! * 1.1
+        );
+        const dispHeightPx = Math.max(
+          annotation.height! + 4,
+          annotation.height! * 1.1
+        );
+
+        return (
+          <React.Fragment key={annotation.id}>
+            {/* (1) White cover at the source's original location. */}
             <div
-              key={annotation.id}
+              className="absolute"
+              style={{
+                left: (coverX - 5) * scale,
+                top: (coverY - coverH - 2) * scale,
+                width: coverWidthPx * scale,
+                height: coverHeightPx * scale,
+                backgroundColor: "white",
+                pointerEvents: "none",
+                zIndex: 4,
+              }}
+              aria-hidden
+            />
+            {/* (2) Editable text overlay at the annotation's display pos. */}
+            <div
               className="absolute"
               style={{
                 left: (annotation.x - 5) * scale,
                 top: (annotation.y - annotation.height! - 2) * scale,
-                width: coverWidth * scale,
+                width: dispWidthPx * scale,
                 // Fixed height (NOT minHeight) — otherwise long edited text
                 // grows the div downward and the pointerEvents:auto region
-                // covers + swallows clicks on neighbouring text blocks, so
-                // the user can never edit anything else again.
-                height: coverHeight * scale,
+                // covers + swallows clicks on neighbouring text blocks.
+                height: dispHeightPx * scale,
                 overflow: "hidden",
                 backgroundColor: "white",
                 fontSize: textEdit.data.fontSize * scale,
@@ -1451,9 +1487,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 textAlign: textAlign,
                 zIndex: 5,
               }}
-              title={
-                showBorder ? "Drag to move · click to edit" : undefined
-              }
+              title={showBorder ? "Drag to move · click to edit" : undefined}
               onMouseDown={(e) => {
                 if (currentTool !== "editText") return;
                 if (e.button !== 0) return;
@@ -1475,28 +1509,20 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   suppressClickRef.current = false;
                   return; // user just dragged — don't open the editor
                 }
-                // Re-open the editor on the source block, pre-populated with
-                // the current edited text. The submit handler will detect
-                // the existing annotation and update it in place.
-                const source = extractedText.find(
-                  (t) => t.id === textEdit.data.originalTextId
-                );
                 if (!source) return;
                 setReeditingAnnotationId(annotation.id);
                 setEditingExtractedText({
                   ...source,
                   text: textEdit.data.newText,
                 });
-                // Prefer the saved annotation flags; fall back to the source.
                 setEditingBold(textEdit.data.bold ?? !!source.bold);
                 setEditingItalic(textEdit.data.italic ?? !!source.italic);
               }}
             >
               {textEdit.data.newText}
             </div>
-          );
-        }
-        return null;
+          </React.Fragment>
+        );
       })}
 
       {/* Hidden file input for image upload */}
