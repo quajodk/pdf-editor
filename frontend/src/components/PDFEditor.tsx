@@ -239,22 +239,41 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
             if (avgGap > 0) measuredLineHeight = avgGap;
           }
 
-          // Detect text alignment based on position relative to page
+          // Detect alignment from per-line offsets inside the paragraph,
+          // not from the paragraph bbox vs the page. A wide left-aligned
+          // body paragraph has near-equal page margins too, which the old
+          // bbox heuristic misread as "centered".
           const pageWidth = viewport.width;
-          const leftMargin = minX;
-          const rightMargin = pageWidth - maxX;
-          
           let textAlign: 'left' | 'center' | 'right' = 'left';
-          
-          // Check if text is centered (both margins roughly equal)
-          if (Math.abs(leftMargin - rightMargin) < 30 && leftMargin > 50) {
-            textAlign = 'center';
+
+          if (paragraph.length >= 2) {
+            const blockLeft = minX;
+            const blockRight = maxX;
+            const blockCenter = (blockLeft + blockRight) / 2;
+            const tol = Math.max(4, avgFontSize * 0.5);
+
+            let leftHits = 0;
+            let rightHits = 0;
+            let centerHits = 0;
+            for (const line of paragraph) {
+              const lineCenter = (line.x + line.maxX) / 2;
+              if (Math.abs(line.x - blockLeft) <= tol) leftHits++;
+              if (Math.abs(line.maxX - blockRight) <= tol) rightHits++;
+              if (Math.abs(lineCenter - blockCenter) <= tol) centerHits++;
+            }
+            const n = paragraph.length;
+            // Prefer "left" when both left and center match (justified or
+            // ragged-right body text); only call it centered when the
+            // centers line up but the left edges do NOT.
+            if (leftHits >= n * 0.7) {
+              textAlign = 'left';
+            } else if (centerHits >= n * 0.7 && leftHits < n * 0.5) {
+              textAlign = 'center';
+            } else if (rightHits >= n * 0.7 && leftHits < n * 0.5) {
+              textAlign = 'right';
+            }
           }
-          // Check if text is right-aligned (small right margin, large left margin)
-          else if (rightMargin < 50 && leftMargin > rightMargin * 2) {
-            textAlign = 'right';
-          }
-          // Default to left alignment
+          // Single-line paragraphs are ambiguous — leave as left.
 
           allExtractedText.push({
             id: `text-${pageNum}-${paragraphIndex}`,

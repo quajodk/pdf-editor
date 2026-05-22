@@ -49,6 +49,12 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editingExtractedText, setEditingExtractedText] =
     useState<ExtractedTextItem | null>(null);
+  // When the user clicks an already-edited block to revise it, remember the
+  // existing TextEditAnnotation id so the submit handler updates that one
+  // instead of stacking a second textEdit on top of the same source block.
+  const [reeditingAnnotationId, setReeditingAnnotationId] = useState<
+    string | null
+  >(null);
   const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(
     null
   );
@@ -608,32 +614,59 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         lines.length * lineHeight
       );
 
-      // Create a text edit annotation with the original text ID for proper replacement
-      // Preserve the original text alignment and page width for proper formatting
-      const annotation: TextEditAnnotation = {
-        id: Date.now().toString(),
-        type: "textEdit",
-        pageNumber,
-        x: editingExtractedText.x,
-        y: editingExtractedText.y,
-        width: estimatedWidth,
-        height: estimatedHeight,
-        data: {
-          originalText: editingExtractedText.text,
-          newText: newText,
-          fontSize: editingExtractedText.fontSize,
-          fontFamily: editingExtractedText.fontFamily,
-          color: "#000000",
-          originalTextId: editingExtractedText.id, // Link to original text block for proper replacement
-          textAlign: editingExtractedText.textAlign || 'left', // Preserve original alignment
-          pageWidth: editingExtractedText.pageWidth, // Preserve page width for alignment calculation
-          lineHeight: editingExtractedText.lineHeight,
-          firstBaselineY: editingExtractedText.firstBaselineY,
-        },
+      // If we're revising an already-edited block, find the existing
+      // textEdit annotation so we preserve its originalText (the *real*
+      // source) and update in place. Prefer the explicit re-edit id set
+      // by the overlay click; fall back to the originalTextId link.
+      const existing = (reeditingAnnotationId
+        ? annotations.find(
+            (ann) =>
+              ann.id === reeditingAnnotationId && ann.type === "textEdit"
+          )
+        : annotations.find(
+            (ann) =>
+              ann.type === "textEdit" &&
+              (ann as TextEditAnnotation).data.originalTextId ===
+                editingExtractedText.id
+          )) as TextEditAnnotation | undefined;
+
+      const data: TextEditAnnotation["data"] = {
+        originalText: existing
+          ? existing.data.originalText
+          : editingExtractedText.text,
+        newText: newText,
+        fontSize: editingExtractedText.fontSize,
+        fontFamily: editingExtractedText.fontFamily,
+        color: "#000000",
+        originalTextId: editingExtractedText.id,
+        textAlign: editingExtractedText.textAlign || "left",
+        pageWidth: editingExtractedText.pageWidth,
+        lineHeight: editingExtractedText.lineHeight,
+        firstBaselineY: editingExtractedText.firstBaselineY,
       };
-      addAnnotation(annotation);
+
+      if (existing) {
+        updateAnnotation(existing.id, {
+          width: estimatedWidth,
+          height: estimatedHeight,
+          data,
+        });
+      } else {
+        const annotation: TextEditAnnotation = {
+          id: Date.now().toString(),
+          type: "textEdit",
+          pageNumber,
+          x: editingExtractedText.x,
+          y: editingExtractedText.y,
+          width: estimatedWidth,
+          height: estimatedHeight,
+          data,
+        };
+        addAnnotation(annotation);
+      }
     }
     setEditingExtractedText(null);
+    setReeditingAnnotationId(null);
   };
 
   // Handle keyboard shortcuts for delete
@@ -1271,13 +1304,17 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         if (annotation.type === "textEdit") {
           const textEdit = annotation as TextEditAnnotation;
           const showBorder = currentTool === "editText";
-          const textAlign = textEdit.data.textAlign || 'left';
-          
-          // Calculate proper width to cover the original text area
-          // Use the original width plus some padding to ensure full coverage
-          const coverWidth = Math.max(annotation.width! + 10, annotation.width! * 1.1);
-          const coverHeight = Math.max(annotation.height! + 4, annotation.height! * 1.1);
-          
+          const textAlign = textEdit.data.textAlign || "left";
+
+          const coverWidth = Math.max(
+            annotation.width! + 10,
+            annotation.width! * 1.1
+          );
+          const coverHeight = Math.max(
+            annotation.height! + 4,
+            annotation.height! * 1.1
+          );
+
           return (
             <div
               key={annotation.id}
@@ -1286,12 +1323,18 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 left: (annotation.x - 5) * scale,
                 top: (annotation.y - annotation.height! - 2) * scale,
                 width: coverWidth * scale,
-                minHeight: coverHeight * scale,
-                backgroundColor: 'white',
+                // Fixed height (NOT minHeight) — otherwise long edited text
+                // grows the div downward and the pointerEvents:auto region
+                // covers + swallows clicks on neighbouring text blocks, so
+                // the user can never edit anything else again.
+                height: coverHeight * scale,
+                overflow: "hidden",
+                backgroundColor: "white",
                 fontSize: textEdit.data.fontSize * scale,
                 fontFamily: textEdit.data.fontFamily,
                 color: textEdit.data.color,
                 pointerEvents: showBorder ? "auto" : "none",
+                cursor: showBorder ? "pointer" : "default",
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
                 lineHeight: "1.2",
@@ -1299,7 +1342,24 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 borderRadius: "2px",
                 padding: "2px 5px",
                 textAlign: textAlign,
-                zIndex: 5, // Ensure it's above the PDF text layer
+                zIndex: 5,
+              }}
+              title={showBorder ? "Click to edit this text" : undefined}
+              onClick={(e) => {
+                if (currentTool !== "editText") return;
+                e.stopPropagation();
+                // Re-open the editor on the source block, pre-populated with
+                // the current edited text. The submit handler will detect
+                // the existing annotation and update it in place.
+                const source = extractedText.find(
+                  (t) => t.id === textEdit.data.originalTextId
+                );
+                if (!source) return;
+                setReeditingAnnotationId(annotation.id);
+                setEditingExtractedText({
+                  ...source,
+                  text: textEdit.data.newText,
+                });
               }}
             >
               {textEdit.data.newText}
@@ -1379,6 +1439,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   handleExtractedTextSubmit(e.currentTarget.value);
                 } else if (e.key === "Escape") {
                   setEditingExtractedText(null);
+                  setReeditingAnnotationId(null);
                 }
               }}
               onBlur={(e) => handleExtractedTextSubmit(e.currentTarget.value)}
