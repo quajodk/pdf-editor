@@ -1561,7 +1561,13 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 setEditingItalic(textEdit.data.italic ?? !!source.italic);
               }}
             >
-              {/* Inner: visible styled text with clipping. */}
+              {/* Inner: visible styled text with clipping.
+                  pointerEvents:none so this div never absorbs clicks — the
+                  outer shell's gated pointer-events is the sole event
+                  surface. Without this, non-editText tools (pen / shape /
+                  highlight / eraser) silently fail when the user clicks
+                  over an edited block, because the inner default of "auto"
+                  swallows the event before it reaches the canvas. */}
               <div
                 className="w-full h-full"
                 style={{
@@ -1580,6 +1586,7 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   padding: "2px 5px",
                   textAlign: textAlign,
                   boxSizing: "border-box",
+                  pointerEvents: "none",
                 }}
               >
                 {textEdit.data.newText}
