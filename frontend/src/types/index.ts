@@ -23,6 +23,8 @@ export interface TextEditAnnotation extends Annotation {
     pageWidth?: number; // Page width for proper alignment
     lineHeight?: number; // Source baseline-to-baseline spacing
     firstBaselineY?: number; // Canvas Y of original first-line baseline
+    bold?: boolean;
+    italic?: boolean;
   };
 }
 
@@ -118,4 +120,6 @@ export interface ExtractedTextItem {
   pageWidth?: number; // Page width for calculating alignment
   lineHeight?: number; // Measured baseline-to-baseline spacing in source PDF
   firstBaselineY?: number; // Canvas Y of the first line's baseline (for accurate placement)
+  bold?: boolean;
+  italic?: boolean;
 }

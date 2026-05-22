@@ -55,6 +55,11 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
   const [reeditingAnnotationId, setReeditingAnnotationId] = useState<
     string | null
   >(null);
+  // Per-block formatting state for the open edit modal. Initialised from the
+  // source block's detected formatting (or the existing annotation's saved
+  // formatting on re-edit) when the modal opens; the B/I toolbar toggles it.
+  const [editingBold, setEditingBold] = useState(false);
+  const [editingItalic, setEditingItalic] = useState(false);
   const [shapeStart, setShapeStart] = useState<{ x: number; y: number } | null>(
     null
   );
@@ -656,6 +661,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         pageWidth: editingExtractedText.pageWidth,
         lineHeight: editingExtractedText.lineHeight,
         firstBaselineY: editingExtractedText.firstBaselineY,
+        bold: editingBold,
+        italic: editingItalic,
       };
 
       if (existing) {
@@ -680,6 +687,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     }
     setEditingExtractedText(null);
     setReeditingAnnotationId(null);
+    setEditingBold(false);
+    setEditingItalic(false);
   };
 
   // Handle keyboard shortcuts for delete
@@ -1205,6 +1214,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 onClick={(e) => {
                   e.stopPropagation();
                   setEditingExtractedText(textItem);
+                  setEditingBold(!!textItem.bold);
+                  setEditingItalic(!!textItem.italic);
                 }}
                 title="Click to edit this text"
               >
@@ -1345,6 +1356,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 backgroundColor: "white",
                 fontSize: textEdit.data.fontSize * scale,
                 fontFamily: textEdit.data.fontFamily,
+                fontWeight: textEdit.data.bold ? "bold" : "normal",
+                fontStyle: textEdit.data.italic ? "italic" : "normal",
                 color: textEdit.data.color,
                 pointerEvents: showBorder ? "auto" : "none",
                 cursor: showBorder ? "pointer" : "default",
@@ -1373,6 +1386,9 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                   ...source,
                   text: textEdit.data.newText,
                 });
+                // Prefer the saved annotation flags; fall back to the source.
+                setEditingBold(textEdit.data.bold ?? !!source.bold);
+                setEditingItalic(textEdit.data.italic ?? !!source.italic);
               }}
             >
               {textEdit.data.newText}
@@ -1442,6 +1458,41 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
             minWidth: `${editingExtractedText.width * scale}px`,
           }}
         >
+          {/* Formatting toolbar. onMouseDown preventDefault keeps focus on
+              the textarea so its onBlur (auto-submit) doesn't fire when the
+              user clicks B or I. */}
+          <div className="flex items-center gap-1 px-2 pt-2 border-b border-gray-200">
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setEditingBold((v) => !v);
+              }}
+              className={`w-7 h-7 rounded text-sm font-bold border transition-colors ${
+                editingBold
+                  ? "bg-blue-500 text-white border-blue-500"
+                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+              }`}
+              title="Bold"
+            >
+              B
+            </button>
+            <button
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setEditingItalic((v) => !v);
+              }}
+              className={`w-7 h-7 rounded text-sm italic border transition-colors ${
+                editingItalic
+                  ? "bg-blue-500 text-white border-blue-500"
+                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+              }`}
+              title="Italic"
+            >
+              I
+            </button>
+          </div>
           {/* Expandable textarea container */}
           <div className="relative p-2">
             <textarea
@@ -1453,6 +1504,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 } else if (e.key === "Escape") {
                   setEditingExtractedText(null);
                   setReeditingAnnotationId(null);
+                  setEditingBold(false);
+                  setEditingItalic(false);
                 }
               }}
               onBlur={(e) => handleExtractedTextSubmit(e.currentTarget.value)}
@@ -1460,6 +1513,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
               style={{
                 fontSize: editingExtractedText.fontSize * scale,
                 fontFamily: editingExtractedText.fontFamily,
+                fontWeight: editingBold ? "bold" : "normal",
+                fontStyle: editingItalic ? "italic" : "normal",
                 color: "#000000",
                 minWidth: `${editingExtractedText.width * scale}px`,
                 minHeight: `${Math.max(editingExtractedText.height * scale, 60)}px`,
@@ -1515,8 +1570,9 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           {/* Help text */}
           <div className="px-3 pb-2 text-xs text-gray-600 bg-gray-50 rounded-b border-t border-gray-200">
             <span className="font-semibold">Ctrl+Enter</span> to save ·{" "}
-            <span className="font-semibold">Esc</span> to cancel · Drag corners
-            to resize
+            <span className="font-semibold">Esc</span> to cancel ·{" "}
+            <span className="font-semibold">B</span>/
+            <span className="font-semibold">I</span> for bold/italic
           </div>
         </div>
       )}

@@ -84,12 +84,25 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         const page = await pdf.getPage(pageNum);
         const textContent = await page.getTextContent();
         const viewport = page.getViewport({ scale: 1.0 });
+        // PDF.js sets item.fontName to an opaque id ("g_d0_f1"); the real
+        // CSS font family used by the text layer lives on textContent.styles.
+        const styles = (textContent as any).styles || {};
 
         // Group text items into lines based on vertical position
         const textItems: any[] = [];
         textContent.items.forEach((item: any) => {
           if (item.str && item.str.trim()) {
             const transform = item.transform;
+            const styleFamily: string =
+              styles[item.fontName]?.fontFamily ||
+              item.fontName ||
+              "Arial";
+            // PDF subset prefixes look like "ABCDEF+Times-Bold" — strip them
+            // so the bold/italic regex matches the real family suffix.
+            const cleanFamily = styleFamily.replace(/^[A-Z]{6}\+/, "");
+            const isBold =
+              /bold|black|heavy|semibold|demibold/i.test(cleanFamily);
+            const isItalic = /italic|oblique/i.test(cleanFamily);
             textItems.push({
               str: item.str,
               x: transform[4],
@@ -97,7 +110,9 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
               width: item.width,
               height: item.height,
               fontSize: Math.round(transform[0]),
-              fontName: item.fontName || "Arial",
+              fontName: cleanFamily,
+              bold: isBold,
+              italic: isItalic,
             });
           }
         });
@@ -153,6 +168,10 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
           );
           const bottomY = baselineY + avgFontSize * 0.25;
 
+          // Treat the line as bold/italic when the majority of its glyphs are.
+          const boldCount = line.filter((i) => i.bold).length;
+          const italicCount = line.filter((i) => i.italic).length;
+
           return {
             text: lineText,
             x: minX,
@@ -164,6 +183,8 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
             height: bottomY - topY,
             fontSize: avgFontSize,
             fontFamily: line[0].fontName,
+            bold: boldCount * 2 >= line.length,
+            italic: italicCount * 2 >= line.length,
             lineIndex,
           };
         });
@@ -275,6 +296,10 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
           }
           // Single-line paragraphs are ambiguous — leave as left.
 
+          // Paragraph inherits formatting from the majority of its lines.
+          const boldLines = paragraph.filter((l) => l.bold).length;
+          const italicLines = paragraph.filter((l) => l.italic).length;
+
           allExtractedText.push({
             id: `text-${pageNum}-${paragraphIndex}`,
             text: paragraphText,
@@ -289,6 +314,8 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
             pageWidth,
             lineHeight: measuredLineHeight,
             firstBaselineY: paragraph[0].baselineY,
+            bold: boldLines * 2 >= paragraph.length,
+            italic: italicLines * 2 >= paragraph.length,
           });
         });
       }
@@ -345,10 +372,17 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     const courier = await pdfDoc.embedFont(StandardFonts.Courier);
     const courierBold = await pdfDoc.embedFont(StandardFonts.CourierBold);
 
-    return (fontFamily: string | undefined): PDFFont => {
+    return (
+      fontFamily: string | undefined,
+      boldOverride?: boolean,
+      italicOverride?: boolean
+    ): PDFFont => {
       const f = (fontFamily || "").toLowerCase();
-      const isBold = /bold|black|heavy|semibold/.test(f);
-      const isItalic = /italic|oblique/.test(f);
+      const familyBold = /bold|black|heavy|semibold/.test(f);
+      const familyItalic = /italic|oblique/.test(f);
+      // Explicit flags (from the annotation) win over family-name guessing.
+      const isBold = boldOverride ?? familyBold;
+      const isItalic = italicOverride ?? familyItalic;
       const isMono = /mono|courier|consolas|menlo/.test(f);
       const isSerif = /serif|times|roman|georgia|garamond|cambria/.test(f);
       if (isMono) return isBold ? courierBold : courier;
@@ -404,11 +438,15 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     page: PDFPage,
     pageHeight: number,
     ann: TextEditAnnotation,
-    pickFont: (fontFamily: string | undefined) => PDFFont
+    pickFont: (
+      fontFamily: string | undefined,
+      bold?: boolean,
+      italic?: boolean
+    ) => PDFFont
   ) => {
     const { fontSize, fontFamily, color, newText } = ann.data;
     const textAlign = ann.data.textAlign || "left";
-    const font = pickFont(fontFamily);
+    const font = pickFont(fontFamily, ann.data.bold, ann.data.italic);
     const colorRgb = hexToRgb(color);
 
     const blockWidth = ann.width || 100;
