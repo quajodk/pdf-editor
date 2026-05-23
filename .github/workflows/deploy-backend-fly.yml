@@ -1,0 +1,48 @@
+# Build the backend Docker image and deploy it to Fly.io.
+#
+# Required GitHub repo secrets:
+#   FLY_API_TOKEN       — `flyctl auth token` value for an org/personal token
+#                         with deploy access to the FLY_APP.
+#
+# Optional GitHub repo variables (set under Settings → Secrets and variables
+# → Actions → Variables; falls back to the value in backend/fly.toml):
+#   FLY_APP             — overrides the app name in fly.toml if you maintain
+#                         multiple Fly environments from the same repo.
+#
+# Trigger: pushes to main/master that touch the backend, or manual dispatch.
+name: Deploy backend → Fly.io
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend-fly.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: fly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -n "${{ vars.FLY_APP }}" ]; then
+            flyctl deploy --remote-only --app "${{ vars.FLY_APP }}"
+          else
+            flyctl deploy --remote-only
+          fi

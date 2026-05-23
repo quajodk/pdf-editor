@@ -9898,3 +9898,146 @@ All pushed to `origin/master` on `github.com:quajodk/pdf-editor`.
 **Progress: editText is now WYSIWYG-correct on save, drawing tools
 work, drag/resize work on both source and edited blocks, and the
 browser warns before closing.**
+
+---
+
+## Session 64 - Search highlights, CI deploy, README (2026-05-23)
+
+Three improvements on top of Session 63. No new gotchas in the editor
+code itself — the editText invariants from Session 63 still hold. Read
+Session 63 first if you have not already; the deploy work below is the
+only new architectural surface.
+
+### 1. Visual search highlighting
+
+Search previously found matches and showed `N of M` in the SearchBar but
+nothing on the page. The fix added per-match bounding boxes to
+`SearchResult` and renders them on the canvas.
+
+* `types/index.ts` — `SearchResult` now carries optional `x/y/width/height`
+  (canvas coords at scale = 1). They are optional so older code paths or
+  test fixtures using the old shape still type-check.
+* `PDFEditor.tsx::handleSearch` — instead of joining every text item on a
+  page into one string and substring-matching the join (which loses
+  positional information), we now walk each text item independently and
+  compute a bbox for each match. The bbox interpolates a per-character
+  width from the item's `transform[0]` (fontSize), `transform[4]` (x),
+  `transform[5]` (baseline-y) and `item.width`.
+* `PDFCanvas.tsx` — pulls `searchResults` and `currentSearchIndex` from
+  the store, renders a yellow rectangle for each non-active hit on the
+  current page and an orange one with an outline for the active hit. The
+  active hit is marked with `data-search-active="true"`. A `useEffect`
+  scrolls that element into view on every `currentSearchIndex` change
+  via `scrollIntoView({ block: 'center', inline: 'center' })`.
+* Z-index for highlights is 7 — above the green textEdit shell (6) and
+  the drawing surface (5), below modals (1000). Highlights have
+  `pointerEvents:'none'` so they never intercept drawing clicks.
+
+**Known limitation, deliberate**: matches that span multiple PDF.js text
+items are NOT found. PDF.js often splits text into per-glyph or per-run
+items; mapping a substring match in the joined page string back to the
+right (possibly partial) items is involved. Per-item matches cover the
+overwhelming majority of user queries. If multi-item search becomes
+important, index the joined string with per-item character offsets and
+walk back through the items when a match crosses boundaries.
+
+**Verified live** in a preview browser session: typing `test` against
+the sample PDF produced 6 hits, one orange active + the rest yellow,
+visible at the correct glyph positions; next-arrow advanced both the
+counter and the active colour. Screenshots in the chat.
+
+### 2. CI deploy workflows
+
+Three independent GitHub Actions workflows under `.github/workflows/`,
+plus the deployment configs the workflows expect.
+
+* `deploy-backend-fly.yml` — `flyctl deploy --remote-only` on pushes that
+  touch `backend/`. Uses `backend/fly.toml` (created this session) and
+  `backend/Dockerfile`.
+* `deploy-backend-cloudrun.yml` — `google-github-actions/deploy-cloudrun`
+  with `source: ./backend`. Cloud Build builds the same Dockerfile;
+  Cloud Run runs it. The two backend targets are parallel options, not
+  alternatives: enable either or both.
+* `deploy-frontend-cloudflare.yml` — `npm ci && npm run build` in
+  `frontend/`, then `cloudflare/wrangler-action` to `pages deploy
+  frontend/build`.
+* All three workflows skip on pushes that don't touch the relevant
+  paths, and have a `workflow_dispatch` trigger for manual runs.
+* `concurrency` group set per workflow; the Fly/Cloud Run groups do not
+  cancel in-progress (you don't want to abort a deploy mid-flight), but
+  the Pages workflow does.
+
+**Required GitHub repo configuration** (all listed in README.md too):
+
+* Fly: secret `FLY_API_TOKEN`. Optional variable `FLY_APP`.
+* Cloud Run: secret `GCP_SA_KEY` (service account JSON with
+  `run.admin` + `iam.serviceAccountUser` + `cloudbuild.builds.editor` +
+  `artifactregistry.writer`). Variables `GCP_PROJECT_ID`,
+  `CLOUD_RUN_SERVICE`, `CLOUD_RUN_REGION`. Optional variable
+  `CORS_ORIGINS` (passed through as a runtime env var on the service).
+* Cloudflare Pages: secrets `CLOUDFLARE_API_TOKEN` (Pages: Edit),
+  `CLOUDFLARE_ACCOUNT_ID`. Variable `CLOUDFLARE_PAGES_PROJECT`.
+  Optional variable `REACT_APP_API_URL` (build-time, inlined into the
+  bundle; CRA only inlines `REACT_APP_*` vars).
+
+**Backend production CORS**: `server.js` was extended to read a
+`CORS_ORIGINS` env var. If set, it parses a comma-separated list and
+restricts CORS to those origins; if unset, it falls back to the default
+`cors()` (allow all) so local dev is unchanged. Fly: set with
+`flyctl secrets set CORS_ORIGINS=…`. Cloud Run: set via the
+`CLOUD_RUN_*` env var or in the workflow's `env_vars` block.
+
+**Frontend side**: `frontend/public/_redirects` ships an SPA fallback
+(`/* /index.html 200`) so a deep URL refresh on Cloudflare Pages won't
+404. Current app has no client-side routing, so this is precautionary
+— but harmless and future-proof.
+
+**Status of the backend itself**: scaffolded but UNUSED by the current
+frontend. All PDF rendering and editing happens client-side via
+pdf-lib + PDF.js. The backend has health/upload/get/delete endpoints
+but the React app never calls them. Deploy is forward-looking. Keep
+this in mind if you wonder why turning the backend off doesn't break
+anything.
+
+### 3. README.md
+
+Comprehensive — what it is, the stack, features, local dev (`./init.sh`
+or manual), env-var tables for frontend/backend, full deploy
+instructions for each of the three workflows with required
+secrets/variables, project layout tree, architecture notes (cover-vs-
+display, single-annotation-per-source, the z-index stack) plus the four
+shorter gotchas (pointer-events inheritance, PDF.js opaque font name,
+no underline in pdf-lib, multi-item search). The intent is that a new
+contributor can clone, run, and deploy without reading the source.
+
+### Files touched this session
+
+* `frontend/src/components/PDFEditor.tsx` — search rewrite.
+* `frontend/src/components/PDFCanvas.tsx` — highlight render + scroll
+  effect, store pulls.
+* `frontend/src/types/index.ts` — `SearchResult` bbox fields.
+* `backend/src/server.js` — env-driven CORS origins.
+* New: `backend/Dockerfile`, `backend/.dockerignore`,
+  `backend/fly.toml`, `backend/.env.example`, `backend/uploads/.gitkeep`.
+* New: `frontend/.env.example`, `frontend/public/_redirects`.
+* New: `.github/workflows/deploy-backend-fly.yml`,
+  `.github/workflows/deploy-backend-cloudrun.yml`,
+  `.github/workflows/deploy-frontend-cloudflare.yml`.
+* New: `README.md`.
+
+### Out of scope, considered for later
+
+* **Multi-item search** — see limitation above.
+* **PDF snapshot tests** — the existing Puppeteer tests caught zero
+  editText regressions in Session 63 because they don't diff the
+  rendered PDF against expectations. Add one even for the trivial case
+  ("edit first paragraph; saved PDF byte-compare against fixture").
+* **Workload Identity Federation for Cloud Run** — the
+  `deploy-backend-cloudrun` workflow uses a JSON service-account key
+  for simplicity; the `id-token: write` permission is already on the
+  job so you can swap `credentials_json` for a WIF `workload_identity_provider`
+  in one step.
+
+**Progress: search highlights are visible and navigable, deploys are
+push-button (with secrets filled), and the project has a real
+README.**

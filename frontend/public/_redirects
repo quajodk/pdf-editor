@@ -1,0 +1,4 @@
+# Cloudflare Pages SPA fallback. Without this, refreshing a deep URL would
+# 404. The current app has no client-side routing so this is precautionary,
+# but harmless.
+/*    /index.html   200

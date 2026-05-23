@@ -1113,35 +1113,59 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
         const results: SearchResult[] = [];
         const loadingTask = pdfjs.getDocument(URL.createObjectURL(currentFile));
         const pdf = await loadingTask.promise;
+        const lowerQuery = query.toLowerCase();
 
-        // Search through all pages
+        // Search per page, per text item. We compute a bounding box for each
+        // match so the editor can paint a highlight rectangle.
+        //
+        // Limitation: matches that span multiple PDF.js text items are NOT
+        // currently found (PDF.js often splits text into many small items —
+        // sometimes per glyph). Splitting the joined string back into
+        // per-item positions is complex; per-item matches cover the vast
+        // majority of user queries. If multi-item search becomes important,
+        // index character offsets per item and walk the join.
         for (let pageNum = 1; pageNum <= numPages; pageNum++) {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
+          const viewport = page.getViewport({ scale: 1.0 });
 
-          // Combine all text items into a single string
-          const pageText = textContent.items
-            .map((item: any) => item.str)
-            .join(" ");
+          textContent.items.forEach((rawItem: any) => {
+            const str: string = rawItem.str || "";
+            if (!str) return;
+            const lower = str.toLowerCase();
+            let from = 0;
+            let pos = lower.indexOf(lowerQuery, from);
+            while (pos !== -1) {
+              // The match's bounding box, derived from the item's own bbox.
+              // PDF.js gives the item's baseline position via transform[5]
+              // and the item's advance width via item.width. We interpolate
+              // a per-character width to locate the match within the item.
+              const transform = rawItem.transform;
+              const fontSize = Math.abs(transform[0]) || 12;
+              const itemWidth: number = rawItem.width || 0;
+              const itemX: number = transform[4];
+              const baselineY: number = transform[5];
+              const charWidth = str.length > 0 ? itemWidth / str.length : 0;
+              const matchX = itemX + charWidth * pos;
+              const matchW = Math.max(2, charWidth * lowerQuery.length);
+              // Canvas Y (top-down) of the glyph TOP edge.
+              const canvasGlyphTop =
+                viewport.height - baselineY - fontSize * 0.8;
+              const canvasGlyphHeight = fontSize * 1.1;
 
-          // Find all occurrences of the search query (case-insensitive)
-          const lowerQuery = query.toLowerCase();
-          const lowerText = pageText.toLowerCase();
-          let index = 0;
-          let position = lowerText.indexOf(lowerQuery, index);
-
-          while (position !== -1) {
-            results.push({
-              pageNumber: pageNum,
-              text: pageText.substring(
-                Math.max(0, position - 20),
-                Math.min(pageText.length, position + query.length + 20)
-              ),
-              index: results.length,
-            });
-            index = position + 1;
-            position = lowerText.indexOf(lowerQuery, index);
-          }
+              results.push({
+                pageNumber: pageNum,
+                text: str,
+                index: results.length,
+                x: matchX,
+                y: canvasGlyphTop,
+                width: matchW,
+                height: canvasGlyphHeight,
+              });
+              from = pos + Math.max(1, lowerQuery.length);
+              pos = lower.indexOf(lowerQuery, from);
+            }
+          });
         }
 
         setSearchResults(results);

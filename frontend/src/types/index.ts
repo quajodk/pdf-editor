@@ -104,6 +104,13 @@ export interface SearchResult {
   pageNumber: number;
   text: string;
   index: number;
+  // Bounding box of the match in canvas coordinates at scale=1.
+  // The overlay multiplies by the current zoom level. Absent on results
+  // produced before the highlight feature existed.
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
 }
 
 export interface ExtractedTextItem {

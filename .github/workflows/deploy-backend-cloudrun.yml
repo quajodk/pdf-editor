@@ -1,0 +1,68 @@
+# Build the backend container with Cloud Build and deploy to Cloud Run.
+#
+# Required GitHub repo secrets:
+#   GCP_SA_KEY              — JSON key for a service account with at least:
+#                               roles/run.admin
+#                               roles/iam.serviceAccountUser
+#                               roles/cloudbuild.builds.editor
+#                               roles/artifactregistry.writer
+#                             Workload Identity Federation is the modern
+#                             alternative; switch the auth step below if you
+#                             prefer that flow.
+#
+# Required GitHub repo variables (Settings → Secrets and variables →
+# Actions → Variables):
+#   GCP_PROJECT_ID          — GCP project id, e.g. "my-pdf-editor".
+#   CLOUD_RUN_SERVICE       — Cloud Run service name, e.g. "pdf-editor-backend".
+#   CLOUD_RUN_REGION        — e.g. "us-central1".
+#
+# Optional GitHub repo variables:
+#   CORS_ORIGINS            — comma-separated list of allowed origins,
+#                             passed through as a runtime env var on the
+#                             Cloud Run service.
+#
+# Trigger: pushes to main/master that touch the backend, or manual dispatch.
+name: Deploy backend → Cloud Run
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy-backend-cloudrun.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: cloudrun-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for WIF if you swap to it
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate with GCP
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Build & deploy
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ vars.CLOUD_RUN_SERVICE }}
+          region: ${{ vars.CLOUD_RUN_REGION }}
+          source: ./backend
+          env_vars: |
+            NODE_ENV=production
+            CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
+          flags: --allow-unauthenticated

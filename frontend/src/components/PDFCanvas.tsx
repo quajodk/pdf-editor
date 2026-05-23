@@ -35,6 +35,8 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     fontColor,
     extractedText,
     updateExtractedTextItem,
+    searchResults,
+    currentSearchIndex,
   } = useEditorStore();
 
   const [isDrawing, setIsDrawing] = useState(false);
@@ -872,6 +874,25 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     updateAnnotation,
   ]);
 
+  // Scroll the active search highlight into view whenever the index moves.
+  // We look the DOM up after render via the data-search-active attribute.
+  useEffect(() => {
+    if (currentSearchIndex < 0) return;
+    const active = searchResults[currentSearchIndex];
+    if (!active || active.pageNumber !== pageNumber) return;
+    // Defer one frame so the highlight div is in the DOM at the new
+    // currentSearchIndex.
+    const id = requestAnimationFrame(() => {
+      const el = canvasRef.current?.parentElement?.querySelector?.(
+        '[data-search-active="true"]'
+      ) as HTMLElement | null;
+      if (el) {
+        el.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [currentSearchIndex, searchResults, pageNumber]);
+
   // Drag-to-move for source / textEdit overlays. The active drag is tracked
   // in blockDrag; this effect owns the window mousemove/up listeners while
   // a drag is in progress. We update the store on every frame so the
@@ -1678,6 +1699,43 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
           </React.Fragment>
         );
       })}
+
+      {/* Search highlights for the current page. Visual only — no pointer
+          events so they never intercept drawing/editing clicks. The active
+          result (currentSearchIndex) is painted in a stronger colour and
+          gets scrolled into view by the effect below. */}
+      {searchResults
+        .filter(
+          (r) =>
+            r.pageNumber === pageNumber &&
+            r.x != null &&
+            r.y != null &&
+            r.width != null &&
+            r.height != null
+        )
+        .map((r) => {
+          const active = r.index === currentSearchIndex;
+          return (
+            <div
+              key={`search-${r.index}`}
+              data-search-active={active ? "true" : undefined}
+              className="absolute"
+              style={{
+                left: (r.x! - 1) * scale,
+                top: (r.y! - 1) * scale,
+                width: (r.width! + 2) * scale,
+                height: (r.height! + 2) * scale,
+                backgroundColor: active
+                  ? "rgba(255, 145, 0, 0.55)"
+                  : "rgba(255, 230, 0, 0.45)",
+                outline: active ? "2px solid #FF6A00" : undefined,
+                borderRadius: 2,
+                pointerEvents: "none",
+                zIndex: 7,
+              }}
+            />
+          );
+        })}
 
       {/* Hidden file input for image upload */}
       <input

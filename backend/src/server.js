@@ -7,8 +7,19 @@ const fs = require('fs');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// CORS: allow a comma-separated list of origins via CORS_ORIGINS, falling
+// back to "*" in development. Set CORS_ORIGINS in production to the
+// Cloudflare Pages frontend URL.
+const corsOriginsEnv = process.env.CORS_ORIGINS;
+const corsOptions = corsOriginsEnv
+  ? {
+      origin: corsOriginsEnv.split(',').map((s) => s.trim()).filter(Boolean),
+      credentials: true,
+    }
+  : undefined;
+
 // Middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
