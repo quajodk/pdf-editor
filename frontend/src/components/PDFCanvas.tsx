@@ -126,6 +126,11 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     const y = e.clientY - rect.top;
 
     if (currentTool === "text") {
+      // Prevent the browser's default mousedown focus shift. Otherwise the
+      // freshly-mounted <input> gets autoFocus, then loses focus on the same
+      // click cycle, fires onBlur → handleTextSubmit → empty submission →
+      // setTextInput(null) → input unmounts before the user can type.
+      e.preventDefault();
       setTextInput({ x, y, text: "" });
     } else if (currentTool === "image") {
       setPendingImagePosition({ x, y });
@@ -615,8 +620,21 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
     }
   };
 
+  // Guards against double-submission. When the user presses Enter we
+  // setTextInput(null), which unmounts the <input>. The unmount fires a
+  // native blur that React still dispatches to the *previous* render's
+  // onBlur — whose closure has the OLD textInput value — and the guard
+  // there would otherwise re-submit, creating a duplicate annotation.
+  const textSubmittingRef = useRef(false);
+
   const handleTextSubmit = () => {
+    if (textSubmittingRef.current) return;
     if (textInput && textInput.text.trim()) {
+      textSubmittingRef.current = true;
+      // Reset after the current click cycle so the next open works.
+      setTimeout(() => {
+        textSubmittingRef.current = false;
+      }, 0);
       if (editingTextId) {
         // Update existing annotation
         updateAnnotation(editingTextId, {
@@ -1682,7 +1700,15 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         >
           <input
             type="text"
-            autoFocus
+            // Defer focus to the next tick via ref so we sidestep the
+            // ordering race where autoFocus runs before the click-cycle's
+            // default focus shift completes — see handleMouseDown.
+            ref={(el) => {
+              if (el && document.activeElement !== el) {
+                // setTimeout 0 puts focus after the current click cycle
+                setTimeout(() => el.focus(), 0);
+              }
+            }}
             value={textInput.text}
             onChange={(e) =>
               setTextInput({ ...textInput, text: e.target.value })
@@ -1695,7 +1721,15 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 setEditingTextId(null);
               }
             }}
-            onBlur={handleTextSubmit}
+            onBlur={(e) => {
+              // Only commit on blur if the user actually typed something.
+              // An empty blur (e.g. from a stray focus shift right after
+              // mount) would silently clear the input and look like the
+              // tool did nothing.
+              if (textInput && textInput.text.trim()) {
+                handleTextSubmit();
+              }
+            }}
             className="outline-none px-2 py-1"
             style={{
               fontSize,
