@@ -9511,3 +9511,390 @@ The application is complete and production-ready. All 51 test cases are passing.
 - Additional browser testing (Chrome/Firefox/Safari/Edge)
 
 **Progress: 51/51 tests passing (100%) - Production Ready**
+
+---
+
+## Session 63 - Real text editing, repositioning, and tool layering (2026-05-23)
+
+This session was a substantial overhaul of the editText feature and a fix
+for the drawing tools not landing on the canvas. The earlier "all 51 tests
+pass" was misleading: those tests checked toolbar presence and basic
+clicks, not the WYSIWYG correctness of text editing or whether the saved
+PDF actually preserved formatting. End-user testing turned up several real
+issues that this session fixed. Read this whole entry before touching
+PDFCanvas.tsx or PDFEditor.tsx — there is a layered architecture with
+several non-obvious invariants.
+
+### Repo housekeeping
+
+* `97701e8` — broadened `.gitignore` with secret/credential patterns
+  (`*.pem`, `*.key`, `id_rsa*`, `service-account*.json`, `.aws/`, etc.).
+* Added the `quajodk/pdf-editor` GitHub remote and did the first push.
+* `2d514dd` — moved 177 loose `*.png` from the repo root into
+  `screenshots/`, and 84 `test-*.js` plus the three test fixtures
+  (`test-sample.pdf`, `test-image.html`, `test-text-edit-manual.md`) into
+  a new `tests/` folder. All moves were done with `git mv` so history is
+  preserved. Test scripts read fixtures via
+  `path.resolve(__dirname, 'test-sample.pdf')`, so the relative reference
+  travels with the script. A handful of older tests still write
+  screenshots to `screenshots/01-foo.png` or bare `session30-test-...png`
+  paths — those rely on being launched from the repo root with
+  `node tests/test-foo.js`.
+
+### What the editText feature actually has to do
+
+The mental model the code is built on (and which must be preserved):
+
+1. On document load, every paragraph of native PDF text is extracted with
+   PDF.js into an `ExtractedTextItem` — paragraph text, bbox, font
+   metrics, alignment, and a few derived fields. This is the SOURCE.
+2. In editText mode, each `ExtractedTextItem` renders as a dashed BLUE
+   overlay positioned over the original text. Click → open the modal,
+   type a replacement, save.
+3. Saving creates a `TextEditAnnotation` whose `originalTextId` points
+   back at the source. The annotation renders as a dashed GREEN overlay
+   that covers the original and shows the new text.
+4. On save/print, `drawTextEdit` paints a WHITE COVER RECTANGLE over the
+   source's original location in the PDF, and then draws the new text at
+   the annotation's current position with an embedded standard font.
+
+The cover-vs-display distinction (point 4) is the most important
+invariant. See below for why we have `originalX/Y/Width/Height` separate
+from `x/y/width/height`.
+
+### Bugs hunted in this session (with the dead ends)
+
+For each: symptom — root cause — fix — and which commit. Listed in the
+order they were tackled.
+
+#### 1. Edited text "scrambled" / formatting lost on save (`97701e8`)
+
+* Symptom: open the recommendation letter, edit a paragraph, download —
+  original glyphs bled through behind the new text and the font collapsed
+  to a default Helvetica regardless of the source.
+* Root cause was a stack of four small bugs:
+  1. The line bbox in PDFEditor.tsx put TOP at the baseline, not at the
+     glyph cap-height. PDF.js's `transform[5]` is the BASELINE, not the
+     top edge — `item.y = viewport.height - transform[5]` is therefore
+     the canvas-Y of the baseline. Adding `item.height` gives bottom +
+     fontHeight (too low); using `item.y` as top leaves ~0.8x fontSize of
+     ascender outside the bbox. The white cover then misses the top of
+     the original glyphs.
+  2. pdf-lib's `page.drawText(...)` defaults to Helvetica.
+  3. Alignment math estimated line width as
+     `length * fontSize * 0.5` — wrong for any proportional font.
+  4. Line spacing was hardcoded to `fontSize * 1.2`.
+* Fix in `97701e8`:
+  - Bbox top = `baseline - fontSize`, bottom = `baseline + 0.25*fontSize`.
+  - Embed `StandardFonts.{Helvetica,TimesRoman,Courier}` + Bold/Italic
+    variants once per save, pick by detected family.
+  - Use `font.widthOfTextAtSize(line, fontSize)` for alignment.
+  - Capture the source's baseline-to-baseline spacing per paragraph and
+    persist as `lineHeight`; capture `firstBaselineY` so the first new
+    line anchors to the original first-line baseline.
+
+#### 2. Full-width paragraphs misdetected as centered (`1ba91a7`)
+
+* Symptom: after editing a left-aligned body paragraph the rendered text
+  re-flowed centered.
+* Root cause: alignment heuristic compared the PARAGRAPH BBOX margins to
+  the page edges. Any body paragraph that spans most of the column has
+  near-equal page margins, which the heuristic read as "centered".
+* Fix: detect alignment from PER-LINE offsets within the paragraph, not
+  bbox vs page. Count `leftHits` (line.x ~ block.left), `centerHits`
+  (lineCenter ~ block.center), `rightHits`. Pick "center" only when
+  centers match AND left edges DON'T — so justified/ragged-right body
+  text stays "left". Single-line paragraphs default to "left".
+
+#### 3. Re-editing an edited block was impossible + neighbours were dead (`1ba91a7`)
+
+* Symptom: after one edit, no further edits anywhere worked.
+* Two layered bugs:
+  - The green textEdit overlay had `pointerEvents:auto` in editText mode
+    but no click handler. There was no path back into the editor.
+  - The overlay used `minHeight` + `whiteSpace:pre-wrap`; a long edit
+    grew the div downward and the pointer-events region buried every
+    block below it.
+* Fix: fixed `height` + `overflow:hidden`, added `onClick` to the green
+  overlay that reopens the editor pre-filled with the current edited
+  text, and on submit `updateAnnotation` in place when a textEdit
+  already exists for the same `originalTextId` (instead of stacking a
+  second annotation — the export renderer would have drawn the cover
+  rectangle twice and the last one painted would have won).
+
+#### 4. Long edits ran off the page (`0564e2d`)
+
+* Symptom: typing a long sentence into a block stretched the annotation
+  wider than the page; the saved PDF wrote each `\n`-line on one PDF
+  line, running off the right margin.
+* Cause: `estimatedWidth = max(originalWidth, maxLineLength * charWidth)`
+  in the submit handler, and `drawTextEdit` didn't wrap.
+* Fix: `estimatedWidth = originalWidth` (annotation never grows
+  horizontally); height grows vertically based on a wrap estimate.
+  `drawTextEdit` now has `wrapTextToWidth(text, font, fontSize, maxWidth)`
+  using `font.widthOfTextAtSize`; cover rectangle extends downward to
+  cover the wrapped output.
+
+#### 5. Bold/italic source detection failing silently (`148f774`)
+
+* Symptom: edited bold headers re-rendered as regular weight.
+* THE WHOLE STORY here, because it cost time before being spotted:
+  `item.fontName` from PDF.js's `getTextContent()` is an OPAQUE INTERNAL
+  ID like `g_d0_f1`. It is NOT the real font name. The previous code
+  ran `/bold|italic/i.test(item.fontName)` against this id, which never
+  matched anything. The real CSS family the text layer uses lives at
+  `textContent.styles[item.fontName].fontFamily` (e.g. `"Times-Bold"`,
+  often with a six-letter PDF subset prefix `ABCDEF+`).
+* Fix: resolve via `styles[fontName].fontFamily`, strip the
+  `[A-Z]{6}\+` subset prefix, then regex for bold/italic. Aggregate
+  glyph -> line -> paragraph by majority. Persist on
+  `ExtractedTextItem.bold` / `.italic` and on
+  `TextEditAnnotation.data.bold` / `.italic`. The pdf-lib font picker
+  accepts explicit overrides that beat any family-name guessing.
+
+#### 6. B/I toolbar in the edit modal (`148f774`)
+
+* Added two toggle buttons. Subtlety: the textarea has `onBlur =
+  handleExtractedTextSubmit`; clicking the B/I buttons would steal focus
+  and silently submit the in-progress edit. Fix: the buttons use
+  `onMouseDown={e => { e.preventDefault(); ... }}` so focus stays on the
+  textarea.
+* Out of scope (deliberately): underline (pdf-lib has no underline font;
+  would need a manual stroke under each line) and per-word inline
+  formatting (would require swapping the textarea for a contenteditable
+  / rich-text editor — Slate/TipTap etc.).
+
+#### 7. Drag-to-move blocks before/after editing (`53949da`)
+
+* The non-obvious decision: what happens to the cover rectangle when the
+  user moves a block? If we move the cover with the block, the original
+  PDF text becomes visible at the source location. If we leave the cover
+  and only move the text, you have a covered-but-empty region and a
+  free-floating new block. Neither is right unless you split the two.
+* Solution: `ExtractedTextItem` now has an immutable
+  `originalX/Y/Width/Height` captured at extraction, used ONLY for the
+  white cover rectangle. The mutable `x/y/width/height` are the DISPLAY
+  position (draggable, resizable). `TextEditAnnotation.x/y` is the
+  display position of the new text. `drawTextEdit` looks the source up
+  by `originalTextId` and covers at `source.original*` while drawing the
+  new text at `ann.x/y`. When the block has been moved (>1px off
+  original), the captured `firstBaselineY` shortcut is skipped and the
+  first line re-anchors to the display block's top.
+* Drag interaction: `blockDrag` state with a 4px screen-space threshold
+  to distinguish drag from click. A `suppressClickRef` latches when a
+  real drag ends so the trailing click event is consumed without
+  reopening the editor. Corner resize handles already
+  `stopPropagation` on their own mousedown, so they take precedence
+  over body-drag.
+
+#### 8. Drag uncovered the original in the editor (`f84c19a`)
+
+* Symptom: after `53949da`, dragging the green block in the editor
+  showed a "duplicate" of the original at the source location.
+* Cause: the editor's white cover and the editable overlay were the
+  SAME div (`backgroundColor:'white'` on the textEdit overlay). Moving
+  the overlay moved its background, so react-pdf's text layer became
+  visible at the source again. The saved PDF was already correct (it
+  used `original*` for the cover); only the EDITOR view was wrong.
+* Fix: render each textEdit as TWO divs — a `pointerEvents:none` white
+  cover pinned at `source.originalX/Y/Width/Height`, plus a separate
+  editable overlay at `ann.x/y` with the border, handlers, and text.
+
+#### 9. Resize handles on the green block too (`8f3732b`)
+
+* Source (blue) blocks already had four corner handles; edited (green)
+  blocks didn't. Adding them required a structural change: the green
+  editable div has `overflow:hidden`, which would clip any handle with
+  negative offsets. The new structure is `outer shell -> inner styled
+  text div -> corner handles as siblings of inner`. The shell has no
+  overflow restriction so handles can overhang; the inner still clips.
+* Resize state was generalised: there's now a parallel
+  `resizingAnnotation` alongside `resizingTextBlock`. The math (the
+  `handleMouseMove` resize branch and the global `useEffect`) reads
+  from a unified `resizeStart` adapter; on commit it dispatches to
+  `updateExtractedTextItem` or `updateAnnotation` based on which kind
+  is set.
+
+#### 10. THE Big One: drawing tools didn't draw on the canvas (`00aad4b` then `2e0db62`)
+
+* Symptom: pen, rectangle, circle, line, arrow, highlight, eraser,
+  text, image — all selectable, their settings panels appeared, but
+  mousedown on the page did nothing.
+* The two-step diagnosis was instructive:
+  * **First attempt (`00aad4b`) — only a partial fix.** I noticed the
+    green textEdit overlay's INNER styled div had no explicit
+    `pointer-events`, so in non-editText tool modes the outer shell's
+    `pointerEvents:none` correctly stepped out of the way but the
+    inner stayed at `auto` (because `pointer-events` is NOT inherited)
+    and silently captured every click. Setting `pointerEvents:'none'`
+    on the inner fixed this. BUT the user came back saying the tools
+    were still dead.
+  * **Real root cause (`2e0db62`).** `react-pdf` ships
+    `TextLayer.css` with `.textLayer { z-index: 2 }` and
+    `AnnotationLayer.css` with the annotation layer at `z-index: 3`.
+    Both have descendants with the browser default
+    `pointer-events: auto` (text-selection spans + form widgets).
+    PDFCanvas's main drawing div had NO z-index, so it stacked BELOW
+    those layers and every click landed on a text-layer span before
+    `handleMouseDown` could see it.
+* Fix layering established (top -> bottom):
+  - 1000 modals (text input, edit modal)
+  -  999 resize preview
+  -   10 blue source overlay (editText only)
+  -    6 green textEdit shell
+  -    5 PDFCanvas drawing surface
+  -    4 white textEdit cover
+  -    3 react-pdf annotation layer
+  -    2 react-pdf text layer
+  - auto Page canvas image
+  Side effect (acceptable): native react-pdf text selection is
+  disabled. The app has its own editText path; no functionality lost.
+  Bonus: user drawings now paint above the white textEdit cover (z:5
+  > z:4), instead of being hidden under it.
+* IF YOU TOUCH Z-INDEX HERE: anything that should be CLICKABLE for
+  drawing must stay at <= 5. Anything that should be a CLICK TARGET
+  for editing must stay at >= 6 with `pointerEvents:'auto'`. Anything
+  visual-only must stay at `pointerEvents:'none'`. Modals stay at
+  1000.
+
+#### 11. Text tool input flashed and vanished, or created duplicates (`f995fe8`)
+
+* Two bugs that fed each other; investigated via the Claude_Preview
+  MCP driving a live dev server (saw it with my own eyes via
+  screenshots + DOM eval, which is how the inner-vs-outer pointer
+  events bug in #10 was nailed too):
+  * The canvas's default mousedown shifts focus to body. The freshly
+    mounted `<input autoFocus>` got focus from React, lost it again
+    on the same click cycle, fired `onBlur` ->
+    `handleTextSubmit` saw empty text -> `setTextInput(null)` -> input
+    unmounted. User saw a one-frame flash.
+  * On Enter with non-empty text, `handleTextSubmit` ran, added the
+    annotation, and unmounted the input. Unmounting a focused element
+    fires a native blur that React still dispatches to the PREVIOUS
+    render's `onBlur`. That closure has the OLD non-empty `textInput`,
+    the guard passes, and `handleTextSubmit` runs a SECOND time ->
+    duplicate annotation at the same coordinates.
+* Fix:
+  - `e.preventDefault()` in `handleMouseDown` for the text branch
+    stops the focus shift.
+  - Replaced `autoFocus` with a ref callback that calls `el.focus()`
+    in `setTimeout(0)` so it lands after the click cycle completes.
+  - `onBlur` only commits when the input has non-empty text.
+  - `textSubmittingRef` latches inside `handleTextSubmit` and resets
+    via `setTimeout(0)` — second call returns early.
+
+#### 12. beforeunload guard (`23c5c69`)
+
+* `useEffect` in PDFEditor adds a `beforeunload` listener for its
+  whole lifetime. PDFEditor only mounts when a document is in the
+  store, so this covers "PDF is loaded". All long-running actions
+  happen during that lifetime, so it also covers "action ongoing"
+  without extra plumbing.
+* Modern browsers ignore the returnValue string and show their own
+  dialog. Setting `e.returnValue = ""` (or calling `preventDefault`)
+  is still REQUIRED to trigger the prompt at all.
+
+### Key invariants to preserve (read before refactoring)
+
+1. **`ExtractedTextItem.original*` is the cover, the live `x/y/w/h` is
+   the display.** Never mutate
+   `originalX/originalY/originalWidth/originalHeight` after extraction.
+   Anywhere you paint a white cover to hide the source PDF text —
+   including the editor overlay AND `drawTextEdit` in PDFEditor.tsx —
+   must use `original*`.
+2. **One `TextEditAnnotation` per `originalTextId`.** The submit
+   handler in PDFCanvas.tsx looks for an existing annotation (by the
+   explicit `reeditingAnnotationId` set on overlay click, or by
+   `originalTextId` lookup) and updates it in place. Adding a second
+   annotation for the same source draws the cover twice and the
+   second drawText paints on top of the first, producing visual
+   garbage on save.
+3. **Z-index layering (see #10 above).** Drawing surface = 5. Cover
+   = 4. Edit shell = 6. Don't move these without re-reading that
+   section.
+4. **`pointer-events` does NOT inherit.** Any visual-only child of an
+   event-capturing shell MUST set its own `pointerEvents:'none'`. The
+   green textEdit's inner div is the canonical example — see the
+   comment block there.
+5. **PDF.js's `item.fontName` is opaque.** Use
+   `textContent.styles[fontName].fontFamily`, strip the
+   `[A-Z]{6}\+` PDF subset prefix, then match. Code paths that
+   detect bold/italic must use the resolved family, NOT
+   `item.fontName`.
+6. **pdf-lib has no underline.** Adding underline support would
+   require drawing a stroke under each `drawText` call at the
+   measured `font.widthOfTextAtSize`.
+
+### What I tried that didn't work (so you don't repeat it)
+
+* **Setting `pointerEvents:'none'` on the green textEdit's inner div
+  alone (commit `00aad4b`)** — necessary but not sufficient. The
+  drawing tools were still dead because of the react-pdf z-index
+  issue. Both fixes are needed.
+* **Using `autoFocus` on the text-tool input** — racy with the
+  click-cycle's focus shift. Use a ref + `setTimeout(0).focus()`
+  instead.
+* **Relying on the `onBlur` guard `if (textInput && text.trim())` to
+  prevent double submit on Enter** — the guard reads from a STALE
+  closure (the previous render's textInput), so it passes even after
+  `setTextInput(null)` has been called. Use a ref-based latch.
+* **Detecting alignment by comparing the paragraph's bbox margins
+  against the page edges** — false-positives every wide body
+  paragraph. Use per-line offset analysis.
+* **Detecting bold/italic from `item.fontName`** — `item.fontName` is
+  an opaque internal id (`g_d0_f1`); the regex never matches anything.
+  Use `textContent.styles[fontName].fontFamily`.
+
+### Files touched
+
+Most edits live in just three files:
+* `frontend/src/components/PDFEditor.tsx` — extraction, alignment
+  detection, embedded fonts, `drawTextEdit`, beforeunload guard.
+* `frontend/src/components/PDFCanvas.tsx` — overlays, drag-to-move,
+  resize handles, click-vs-drag suppression, text-tool input and
+  submit guards, B/I toolbar.
+* `frontend/src/types/index.ts` — new fields on `ExtractedTextItem`
+  (`originalX/Y/Width/Height`, `lineHeight`, `firstBaselineY`, `bold`,
+  `italic`) and on `TextEditAnnotation.data` (same minus the
+  `original*`).
+
+### Commits this session
+
+```
+23c5c69  Feat: confirm before closing/refreshing while a PDF is loaded
+f995fe8  Fix: text tool — input no longer auto-dismisses, no duplicate annotation
+2e0db62  Fix: raise drawing canvas above react-pdf text + annotation layers
+00aad4b  Fix: stop edited blocks from swallowing other tools' clicks
+8f3732b  Feat: resize handles on edited (green) text blocks too
+f84c19a  Fix: stop drag-to-move from uncovering original text in editor view
+53949da  Feat: drag-to-move text blocks before and after edit
+148f774  Feat: bold/italic — detect from source, persist, edit, save
+0564e2d  Fix: keep edited text inside the original block; word-wrap on save
+1ba91a7  Fix: stop misdetecting full-width text as centered; allow re-editing blocks
+2d514dd  Chore: organize root-level screenshots and test scripts into folders
+97701e8  Fix: preserve text formatting on edit/save and harden .gitignore
+```
+
+All pushed to `origin/master` on `github.com:quajodk/pdf-editor`.
+
+### Out of scope, but worth considering next
+
+* **Inline mixed formatting** — currently a whole edited block is one
+  weight/style. Mid-word bold needs a contenteditable/Slate/TipTap
+  editor and a representation richer than `data.newText:string`
+  (probably an array of runs).
+* **Underline** — needs a manual stroke under each `drawText` call.
+* **Old tests** — most `tests/test-session*.js` are visual smoke tests
+  written via Puppeteer. They were valuable for catching tab/toolbar
+  regressions but did not catch any of the editText bugs fixed in this
+  session, because they don't compare saved-PDF output against
+  expectations. Adding even one test that diffs the rendered PDF
+  against a golden image for a known edit would be a big improvement.
+* **No-PDF beforeunload** — the listener only attaches once PDFEditor
+  is mounted. If you add async work that runs BEFORE PDFEditor mounts
+  (e.g. a multi-MB initial upload), you'll need a second listener on
+  the upload screen.
+
+**Progress: editText is now WYSIWYG-correct on save, drawing tools
+work, drag/resize work on both source and edited blocks, and the
+browser warns before closing.**
