@@ -914,6 +914,14 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
         style={{
           pointerEvents: "auto",
           cursor: currentTool === "select" ? "default" : "crosshair",
+          // react-pdf's text layer is z:2 and its annotation layer is z:3
+          // (see TextLayer.css / AnnotationLayer.css), both with
+          // pointer-events:auto. Without an explicit z-index, this canvas
+          // div stacks below them and every click is captured by a
+          // text-layer span — pen/shape/eraser/highlight/etc. silently
+          // fail. Stay above react-pdf's layers but below the textEdit
+          // overlays (z:6+) so editText still works.
+          zIndex: 5,
         }}
       >
         <svg className="absolute inset-0 w-full h-full pointer-events-none">
@@ -1504,6 +1512,10 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                 height: coverHeightPx * scale,
                 backgroundColor: "white",
                 pointerEvents: "none",
+                // Sit below the drawing-canvas (z:5) so user drawings on
+                // top of an edit region stay visible. Still above the
+                // PDF text layer (z:2) and annotation layer (z:3), so the
+                // original PDF text remains hidden.
                 zIndex: 4,
               }}
               aria-hidden
@@ -1527,7 +1539,9 @@ const PDFCanvas: React.FC<PDFCanvasProps> = ({ pageNumber, scale }) => {
                     ? "grabbing"
                     : "grab"
                   : "default",
-                zIndex: 5,
+                // Above the drawing canvas (z:5) so the edited text and its
+                // dashed border render on top of any pen/shape strokes.
+                zIndex: 6,
               }}
               title={showBorder ? "Drag to move · click to edit" : undefined}
               onMouseDown={(e) => {
