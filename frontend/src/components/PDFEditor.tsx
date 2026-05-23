@@ -61,6 +61,26 @@ const PDFEditor: React.FC<PDFEditorProps> = ({ file }) => {
     extractedText,
   } = useEditorStore();
 
+  // Warn the user before refresh / tab close / window close while a PDF is
+  // loaded. PDFEditor is only mounted once a document is opened, so the
+  // mere fact that this effect is active means there is a PDF in the
+  // editor. The same listener also covers in-flight actions (download,
+  // extraction, page operations) because they all happen during this
+  // component's lifetime.
+  //
+  // Note: modern browsers ignore the returnValue string and show their own
+  // generic "Are you sure you want to leave?" dialog. Setting returnValue
+  // (or calling preventDefault) is still required to trigger the prompt.
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Required for Chrome / older Firefox to actually show the dialog.
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, []);
+
   const onDocumentLoadSuccess = async ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setTotalPages(numPages);
