@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "PORT=3300 BROWSER=none npm start --prefix frontend"],
+      "port": 3300
+    }
+  ]
+}
