@@ -66,7 +66,7 @@ fi
 # Set environment variable to avoid browser auto-opening
 export BROWSER=none
 
-npm start > ../frontend.log 2>&1 &
+npm run dev > ../frontend.log 2>&1 &
 FRONTEND_PID=$!
 echo "✅ Frontend server started (PID: $FRONTEND_PID)"
 cd ..
@@ -86,7 +86,7 @@ echo "📝 Logs:"
 echo "   Backend:  tail -f backend.log"
 echo "   Frontend: tail -f frontend.log"
 echo ""
-echo "🛑 To stop the servers, run: pkill -f 'node.*server.js' && pkill -f 'react-scripts'"
+echo "🛑 To stop the servers, run: pkill -f 'node.*server.js' && pkill -f 'vite'"
 echo ""
 
 # Keep script running and show logs

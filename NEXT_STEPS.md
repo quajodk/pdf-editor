@@ -52,7 +52,7 @@ import 'react-pdf/dist/Page/TextLayer.css';
 ```bash
 # 1. Stop all servers
 pkill -f 'node.*server.js'
-pkill -f 'react-scripts'
+pkill -f 'vite'
 
 # 2. Clean frontend
 cd frontend

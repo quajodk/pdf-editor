@@ -10,8 +10,8 @@
 #   CLOUDFLARE_PAGES_PROJECT    — Pages project name, e.g. "pdf-editor".
 #
 # Optional GitHub repo variables (build-time, baked into the bundle —
-# CRA only inlines variables that start with REACT_APP_):
-#   REACT_APP_API_URL           — Backend URL, e.g. https://api.example.com.
+# Vite only exposes variables that start with VITE_):
+#   VITE_API_URL                — Backend URL, e.g. https://api.example.com.
 #                                 The current frontend is fully client-side
 #                                 and does not call this URL yet; the var is
 #                                 wired so future backend integration works
@@ -53,9 +53,8 @@ jobs:
       - name: Build
         working-directory: frontend
         env:
-          # CRA only inlines REACT_APP_* env vars into the bundle.
-          REACT_APP_API_URL: ${{ vars.REACT_APP_API_URL }}
-          CI: 'false' # tolerate warnings; CRA elevates warnings to errors otherwise
+          # Vite only exposes VITE_* env vars to the client bundle.
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: npm run build
 
       - name: Publish to Cloudflare Pages
@@ -63,4 +62,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy frontend/build --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+          command: pages deploy frontend/dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }}

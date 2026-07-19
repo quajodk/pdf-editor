@@ -68,7 +68,7 @@ npm start       # listens on :3001
 # Frontend (in another terminal)
 cd frontend
 npm install
-npm start       # opens http://localhost:3000
+npm run dev     # opens http://localhost:3000
 ```
 
 The frontend does NOT currently call the backend — all PDF rendering and
@@ -79,12 +79,12 @@ features (persistence, server-side OCR, etc.).
 
 ### Frontend
 
-CRA only inlines variables that start with `REACT_APP_` into the bundle.
+Vite only exposes variables that start with `VITE_` to the client bundle.
 Copy `frontend/.env.example` to `frontend/.env.local`:
 
-| Variable             | Purpose                                                  | Default              |
-| -------------------- | -------------------------------------------------------- | -------------------- |
-| `REACT_APP_API_URL`  | Base URL of the backend (forward-looking; unused today). | `http://localhost:3001` |
+| Variable        | Purpose                                                  | Default                 |
+| --------------- | -------------------------------------------------------- | ----------------------- |
+| `VITE_API_URL`  | Base URL of the backend (forward-looking; unused today). | `http://localhost:3001` |
 
 ### Backend
 
@@ -153,7 +153,7 @@ independent workflows.
 
 ### `deploy-frontend-cloudflare.yml`
 
-Builds the React app and publishes `frontend/build/` to Cloudflare Pages
+Builds the React app and publishes `frontend/dist/` to Cloudflare Pages
 via `cloudflare/wrangler-action`.
 
 | Required GitHub repo **secret** | Purpose                                            |
@@ -167,7 +167,7 @@ via `cloudflare/wrangler-action`.
 
 | Optional GitHub repo **variable** | Purpose                                                                                                  |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `REACT_APP_API_URL`               | Inlined into the bundle at build time. Set to the deployed backend URL if/when the frontend talks to it. |
+| `VITE_API_URL`                    | Inlined into the bundle at build time. Set to the deployed backend URL if/when the frontend talks to it. |
 
 The frontend's `public/_redirects` ships an SPA fallback (`/* /index.html
 200`) so deep links won't 404.
@@ -182,7 +182,7 @@ The frontend's `public/_redirects` ships an SPA fallback (`/* /index.html
 │   ├── fly.toml                       Fly.io app config
 │   ├── .env.example                   Local-dev env var template
 │   └── package.json
-├── frontend/                          React app (CRA + TS + Tailwind)
+├── frontend/                          React app (Vite + TS + Tailwind)
 │   ├── src/
 │   │   ├── components/
 │   │   │   ├── PDFEditor.tsx          Owns the file, runs extraction,
@@ -198,8 +198,9 @@ The frontend's `public/_redirects` ships an SPA fallback (`/* /index.html
 │   │   ├── store/useEditorStore.ts    Zustand store (annotations, history,
 │   │   │                              extracted text, search state, tool)
 │   │   └── types/index.ts             Annotation / SearchResult / etc.
+│   ├── index.html                     Vite HTML entry
 │   ├── public/_redirects              Cloudflare Pages SPA fallback
-│   ├── .env.example                   REACT_APP_* template
+│   ├── .env.example                   VITE_* template
 │   └── package.json
 ├── .github/workflows/
 │   ├── deploy-backend-fly.yml
